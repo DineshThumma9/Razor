@@ -1,0 +1,302 @@
+[
+  {
+    "type": "failed_payment",
+    "order_id": "order_TUrAP7dEKX8Wge",
+    "amount_paise": 999900,
+    "amount_inr": 9999.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Suresh Mehta",
+      "email": "suresh@example.com",
+      "contact": "9000000005"
+    },
+    "failure_reason": "Invalid CVV",
+    "created_at": "2026-08-27T16:15:49.727089+00:00",
+    "status": "payment_failed",
+    "recovery_status": "pending"
+  },
+  {
+    "type": "failed_payment",
+    "order_id": "order_TUrAPLTCXFcqUl",
+    "amount_paise": 499900,
+    "amount_inr": 4999.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Ananya Singh",
+      "email": "ananya@example.com",
+      "contact": "9000000003"
+    },
+    "failure_reason": "Card expired",
+    "created_at": "2026-08-27T16:15:49.841626+00:00",
+    "status": "payment_failed",
+    "recovery_status": "pending"
+  },
+  {
+    "type": "failed_payment",
+    "order_id": "order_TUrAPSUjFnGkyo",
+    "amount_paise": 199900,
+    "amount_inr": 1999.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Priya Sharma",
+      "email": "priya@example.com",
+      "contact": "9000000001"
+    },
+    "failure_reason": "Card expired",
+    "created_at": "2026-08-27T16:15:49.931540+00:00",
+    "status": "payment_failed",
+    "recovery_status": "pending"
+  },
+  {
+    "type": "failed_payment",
+    "order_id": "order_TUrAPhc29gxWZo",
+    "amount_paise": 49900,
+    "amount_inr": 499.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Suresh Mehta",
+      "email": "suresh@example.com",
+      "contact": "9000000005"
+    },
+    "failure_reason": "Card expired",
+    "created_at": "2026-08-27T16:15:50.340776+00:00",
+    "status": "payment_failed",
+    "recovery_status": "pending"
+  },
+  {
+    "type": "failed_payment",
+    "order_id": "order_TUrAQFSjPHIGkb",
+    "amount_paise": 99900,
+    "amount_inr": 999.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Ananya Singh",
+      "email": "ananya@example.com",
+      "contact": "9000000003"
+    },
+    "failure_reason": "Insufficient funds",
+    "created_at": "2026-08-27T16:15:50.777424+00:00",
+    "status": "payment_failed",
+    "recovery_status": "pending"
+  },
+  {
+    "type": "abandoned_checkout",
+    "order_id": "order_TUrAQU1fYfxYye",
+    "amount_paise": 199900,
+    "amount_inr": 1999.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Rahul Verma",
+      "email": "rahul@example.com",
+      "contact": "9000000002"
+    },
+    "drop_step": "otp_verification",
+    "created_at": "2026-08-27T16:15:50.970083+00:00",
+    "status": "created",
+    "recovery_status": "pending"
+  },
+  {
+    "type": "abandoned_checkout",
+    "order_id": "order_TUrAQm0QnPxjh6",
+    "amount_paise": 99900,
+    "amount_inr": 999.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Kiran Rao",
+      "email": "kiran@example.com",
+      "contact": "9000000004"
+    },
+    "drop_step": "otp_verification",
+    "created_at": "2026-08-27T16:15:51.385789+00:00",
+    "status": "created",
+    "recovery_status": "pending"
+  },
+  {
+    "type": "abandoned_checkout",
+    "order_id": "order_TUrAR8X8vM5xrP",
+    "amount_paise": 99900,
+    "amount_inr": 999.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Priya Sharma",
+      "email": "priya@example.com",
+      "contact": "9000000001"
+    },
+    "drop_step": "card_details_entry",
+    "created_at": "2026-08-27T16:15:51.578349+00:00",
+    "status": "created",
+    "recovery_status": "pending"
+  },
+  {
+    "type": "abandoned_checkout",
+    "order_id": "order_TUrARN1WRg4g9z",
+    "amount_paise": 999900,
+    "amount_inr": 9999.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Ananya Singh",
+      "email": "ananya@example.com",
+      "contact": "9000000003"
+    },
+    "drop_step": "payment_method_selection",
+    "created_at": "2026-08-27T16:15:51.790097+00:00",
+    "status": "created",
+    "recovery_status": "pending"
+  },
+  {
+    "type": "abandoned_checkout",
+    "order_id": "order_TUrARp639Ilzui",
+    "amount_paise": 99900,
+    "amount_inr": 999.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Suresh Mehta",
+      "email": "suresh@example.com",
+      "contact": "9000000005"
+    },
+    "drop_step": "address_confirmation",
+    "created_at": "2026-08-27T16:15:52.212912+00:00",
+    "status": "created",
+    "recovery_status": "pending"
+  },
+  {
+    "type": "failed_subscription",
+    "subscription_id": "sub_qJt6E8zhEdTQqt",
+    "plan_id": "plan_7PfEY0GeF4qpXX",
+    "amount_paise": 99900,
+    "amount_inr": 999.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Suresh Mehta",
+      "email": "suresh@example.com",
+      "contact": "9000000005"
+    },
+    "halt_reason": "Card expired during renewal",
+    "paid_count": 5,
+    "total_count": 12,
+    "created_at": "2026-08-27T16:15:52.213150+00:00",
+    "status": "halted",
+    "recovery_status": "pending",
+    "synthetic": true
+  },
+  {
+    "type": "failed_subscription",
+    "subscription_id": "sub_Y0xtJ91ESPurrn",
+    "plan_id": "plan_7PfEY0GeF4qpXX",
+    "amount_paise": 99900,
+    "amount_inr": 999.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Rahul Verma",
+      "email": "rahul@example.com",
+      "contact": "9000000002"
+    },
+    "halt_reason": "Mandate rejected by bank",
+    "paid_count": 2,
+    "total_count": 12,
+    "created_at": "2026-08-27T16:15:52.213226+00:00",
+    "status": "halted",
+    "recovery_status": "pending",
+    "synthetic": true
+  },
+  {
+    "type": "failed_subscription",
+    "subscription_id": "sub_4Sojrw3qWflSP8",
+    "plan_id": "plan_7PfEY0GeF4qpXX",
+    "amount_paise": 99900,
+    "amount_inr": 999.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Kiran Rao",
+      "email": "kiran@example.com",
+      "contact": "9000000004"
+    },
+    "halt_reason": "Insufficient balance on renewal date",
+    "paid_count": 10,
+    "total_count": 12,
+    "created_at": "2026-08-27T16:15:52.213347+00:00",
+    "status": "halted",
+    "recovery_status": "pending",
+    "synthetic": true
+  },
+  {
+    "type": "overdue_invoice",
+    "invoice_id": "inv_P4a8yyNAJ7eUYh",
+    "invoice_number": "INV-1000",
+    "description": "Data Analytics",
+    "amount_paise": 49900,
+    "amount_inr": 499.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Priya Sharma",
+      "email": "priya@example.com",
+      "contact": "9000000001"
+    },
+    "days_overdue": 15,
+    "due_by": "2026-08-12T16:15:52.213484+00:00",
+    "created_at": "2026-08-27T16:15:52.213535+00:00",
+    "status": "overdue",
+    "recovery_status": "pending",
+    "synthetic": true
+  },
+  {
+    "type": "overdue_invoice",
+    "invoice_id": "inv_tBOWiEoNzaxc7H",
+    "invoice_number": "INV-1001",
+    "description": "Cloud Infrastructure",
+    "amount_paise": 999900,
+    "amount_inr": 9999.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Rahul Verma",
+      "email": "rahul@example.com",
+      "contact": "9000000002"
+    },
+    "days_overdue": 30,
+    "due_by": "2026-07-28T16:15:52.213647+00:00",
+    "created_at": "2026-08-27T16:15:52.213690+00:00",
+    "status": "overdue",
+    "recovery_status": "pending",
+    "synthetic": true
+  },
+  {
+    "type": "overdue_invoice",
+    "invoice_id": "inv_CZ8UIAgvwxfxHw",
+    "invoice_number": "INV-1002",
+    "description": "Data Analytics",
+    "amount_paise": 199900,
+    "amount_inr": 1999.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Ananya Singh",
+      "email": "ananya@example.com",
+      "contact": "9000000003"
+    },
+    "days_overdue": 53,
+    "due_by": "2026-07-05T16:15:52.213773+00:00",
+    "created_at": "2026-08-27T16:15:52.213841+00:00",
+    "status": "overdue",
+    "recovery_status": "pending",
+    "synthetic": true
+  },
+  {
+    "type": "overdue_invoice",
+    "invoice_id": "inv_XEUuhBNB2d414U",
+    "invoice_number": "INV-1003",
+    "description": "Cloud Infrastructure",
+    "amount_paise": 499900,
+    "amount_inr": 4999.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Suresh Mehta",
+      "email": "suresh@example.com",
+      "contact": "9000000005"
+    },
+    "days_overdue": 30,
+    "due_by": "2026-07-28T16:15:52.213899+00:00",
+    "created_at": "2026-08-27T16:15:52.213914+00:00",
+    "status": "overdue",
+    "recovery_status": "pending",
+    "synthetic": true
+  }
+]
