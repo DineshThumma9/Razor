@@ -1,137 +1,230 @@
-from datetime import datetime, date, timedelta
 import calendar
+from datetime import date, datetime
+
+import razorpay
+from config import Settings
 from langchain_core.tools import tool
+from models import RecoveryState
 
+settings = Settings()
+client = razorpay.Client(auth=(settings.razorpay_key_id, settings.razorpay_key_secret))
 
-# ---------------------------------------------------------------------------
-# Tool: send_email_reminder
-# ---------------------------------------------------------------------------
 
 @tool
-def send_email_reminder(customer_name: str, customer_email: str, amount_inr: float, urgency: str) -> str:
-    """
-    Send a recovery email to the customer.
-    urgency must be one of: 'gentle', 'urgent', 'final'.
-    Returns a confirmation string.
-    """
-    print(f"\n[TOOL] send_email_reminder")
-    print(f"  → To      : {customer_name} <{customer_email}>")
-    print(f"  → Amount  : ₹{amount_inr}")
-    print(f"  → Urgency : {urgency}")
-    # In production: call Resend / SendGrid here
-    return f"Email ({urgency}) sent to {customer_email}"
+def create_payment_link(state: RecoveryState):
+    client.payment_link.create(
+        {
+            "amount": state.amount,
+            "currency": state.currency,
+            "customer": state.customer,
+            "description": "Pending Payment. Please Update the Card",
+            "expire_by": datetime.now() + datetime.hour(24),
+        }
+    )
 
-
-# ---------------------------------------------------------------------------
-# Tool: create_payment_link
-# ---------------------------------------------------------------------------
 
 @tool
-def create_payment_link(customer_name: str, customer_email: str, customer_contact: str, amount_paise: int) -> str:
-    """
-    Create a Razorpay payment link and return the short URL.
-    amount_paise is the amount in paise (₹1 = 100 paise).
-    """
-    print(f"\n[TOOL] create_payment_link")
-    print(f"  → Customer : {customer_name}")
-    print(f"  → Amount   : ₹{amount_paise / 100:.2f}")
-    # In production: call razorpay client here
-    fake_url = f"https://rzp.io/l/recovery-{customer_email.split('@')[0]}"
-    print(f"  → Link     : {fake_url}")
-    return fake_url
+def send_email_remainder():
 
+    pass
 
-# ---------------------------------------------------------------------------
-# Tool: escalate_to_human
-# ---------------------------------------------------------------------------
 
 @tool
-def escalate_to_human(customer_name: str, reason: str) -> str:
-    """
-    Escalate this case to a human agent.
-    Use this when: hard decline, customer unresponsive after 3 attempts,
-    dispute raised, or legal action needed.
-    """
-    print(f"\n[TOOL] escalate_to_human")
-    print(f"  → Customer : {customer_name}")
-    print(f"  → Reason   : {reason}")
-    return f"Case for {customer_name} escalated. Reason: {reason}"
+def esclate_to_human():
+    pass
 
-
-# ---------------------------------------------------------------------------
-# Tool: log_audit_entry
-# ---------------------------------------------------------------------------
 
 @tool
-def log_audit_entry(action: str, result: str, next_retry_days: int = 0) -> str:
-    """
-    Log what action was taken and what the result was.
-    Always call this after every action to maintain the audit trail.
-    next_retry_days: how many days until the next retry (0 = no retry scheduled).
-    """
-    now = datetime.now()
-    next_contact = (now + timedelta(days=next_retry_days)).isoformat() if next_retry_days > 0 else "None"
-    print(f"\n[TOOL] log_audit_entry")
-    print(f"  → Action      : {action}")
-    print(f"  → Result      : {result}")
-    print(f"  → Logged at   : {now.strftime('%Y-%m-%d %H:%M')}")
-    print(f"  → Next contact: {next_contact}")
-    return f"Audit logged: {action} | {result} | next_contact={next_contact}"
+def log_audit_entry():
 
+    pass
 
-# ---------------------------------------------------------------------------
-# Tool: get_next_salary_date
-# ---------------------------------------------------------------------------
 
 @tool
-def get_next_salary_date(reference_date_iso: str = "") -> str:
+def get_next_salary_date(target_date, reference_date=None):
     """
-    Returns upcoming salary milestone dates (1st, 15th, last Friday of month)
-    relative to today or a given ISO date string (YYYY-MM-DD).
-    Use this to decide when to schedule the next retry for a soft decline.
+    Checks if a target_date is past the 1st, 15th, 30th,
+    and all Fridays of the month of the reference_date (defaults to today).
     """
-    ref = date.fromisoformat(reference_date_iso) if reference_date_iso else date.today()
-    year, month = ref.year, ref.month
 
-    milestones = []
+    if reference_date is None:
+        reference_date = date.today()
 
-    for day in [1, 15]:
-        d = date(year, month, day)
-        if d >= ref:
-            milestones.append(d)
+    year = reference_date.year
+    month = reference_date.month
 
-    # Last Friday of the month
-    last_day = calendar.monthrange(year, month)[1]
-    last_date = date(year, month, last_day)
-    offset = (last_date.weekday() - 4) % 7
-    last_friday = last_date - timedelta(days=offset)
-    if last_friday >= ref:
-        milestones.append(last_friday)
+    # 1. Define the fixed milestones (1st, 15th)
+    milestones = [date(year, month, 1), date(year, month, 15)]
+    try:
+        milestones["30th"] = date(year, month, 30)
+    except ValueError:
+        milestones["30th"] = None
 
-    milestones = sorted(set(milestones))
+    # 2. Find all Fridays in the current calendar month
+    month_cal = calendar.monthcalendar(year, month)
+    fridays = [
+        date(year, month, week[calendar.FRIDAY])
+        for week in month_cal
+        if week[calendar.FRIDAY] != 0
+    ]
 
-    if not milestones:
-        # Roll to next month's 1st
-        if month == 12:
-            next_first = date(year + 1, 1, 1)
-        else:
-            next_first = date(year, month + 1, 1)
-        milestones = [next_first]
+    results = []
 
-    result = ", ".join(str(d) for d in milestones)
-    print(f"\n[TOOL] get_next_salary_date")
-    print(f"  → Upcoming milestones: {result}")
-    return result
+    for dat in milestones + fridays:
+        if dat > target_date:
+            results.append(dat)
 
+    return results
 
-# ---------------------------------------------------------------------------
-# Export
-# ---------------------------------------------------------------------------
 
 tools = [
-    send_email_reminder,
-    create_payment_link,
-    escalate_to_human,
-    log_audit_entry,
     get_next_salary_date,
+    log_audit_entry,
+    send_email_remainder,
+    esclate_to_human,
+    create_payment_link,
 ]
+
+
+# from datetime import datetime
+
+# def send_email():
+#     pass
+
+# def escalte_human():
+#     pass
+
+
+# def handle_invoice(initial_date,last_updated,channel,response):
+#     diff = last_updated+datetime.today()-initial_date
+#     if diff < 15:
+#         print(f"send email")
+#         send_email()
+#         channel = 'email'
+#         last_updated = datetime.today()
+#     if diff <  29:
+#         print("Follow up email add urgency maik")
+#         send_email()
+#     if diff < 44:
+#         print("Escalte to human")
+#         escalte_human()
+#     else:
+#         print(f"send legal notcies")
+#         escalte_human()
+
+
+# def handle_checkout(intital_date,last_updated,channel,response,issue,attempts):
+#     if attempts >= 3:
+#         return
+
+#     if issue == "payement_method_selection":
+#         print("Send remainder")
+#     else:
+#         print("Update card enntry")
+
+#     tdiff = intital_date.timedelta(datetime.now())
+#     if tdiff <= 30:
+#         print(f"First urgency")
+#     elif tdiff <= 4:
+#         print(f"Second nudge")
+#     else:
+#         print(f"Thrid nudeg")
+
+#     return attempts+1,datetime.now(),"Email"
+
+
+# async def handle_failed_payment(is_hard,last_updated,email):
+#     if is_hard:
+#         await handle_hard_declines()
+#     tdiff = last_updated.timedelta(datetime.now()).hours
+#     if tdiff < 24:
+#         print("send remainder")
+#     elif tdiff <  48:
+#         print("esaclte")
+
+
+# def handle_retry():
+
+#     pass
+# async def handle_failed_payment(is_hard,last_updated,attempts):
+#     if is_hard:
+#         await handle_hard_declines()
+#     tdiff = last_updated.timedelta(datetime.now()).hours
+#     nextsalary = check_milestones()
+#     handle_retry(nextsalary)
+#     if tdiff < 14 and attempts < 3:
+#         print(f"send email")
+#     if attempts > 3:
+#         print(f"cancel+ winback")
+
+
+# # import json
+
+# with open('backend/data/sample_cases.json','r') as f:
+#     data = json.loads(f)
+
+# failed_txn = []
+# failed_subs = []
+# abandment = []
+# overdue = []
+
+
+# for point in data:
+#     if point["type"].startswith("failed"):
+#         failed_txn.append(Transaction(**point))
+#     elif point["type"].startswith("abandment"):
+#         abandment.append(Transaction(**point))
+#     elif point["type"].startswith("overdue"):
+#         overdue.append(Transaction(**point))
+#     elif point["type"].startswith("failed_subrc"):
+#         failed_subs.append(Transaction(**point))
+
+
+# map(handle_failed_subscription,failed_txn)
+# map(handle_checkout,abandment)
+# map(handle_retry,failed_txn)
+
+
+# def handle_checkout():
+#     pass
+
+# def handle_b2b_chaser():
+#     pass
+
+
+# async def handle_failed_subscription():
+#     if transaction.status in hard_declines.values():
+#         await handle_hard_declines(transaction)
+#     milestones = check_milestones(datetime.today())
+#     if transaction.failure_reason == "Insufficent funds":
+#         if transaction.attemps == 0:
+#             print(f"celery job to ffire on 15th day sales link")
+#         elif transaction.attemps == 1:
+#             print(f"print email")
+#         else:
+#             print(f"10% discount ")
+
+
+# def handle_drop_off():
+#     pass
+
+
+# from datetime import datetime
+
+
+# # def handle_retry(transaction:Transaction):
+# #     if transaction.failure_reason in hard_declines.values():
+# #         handle_hard_declines(transaction)
+# #     date = datetime.datetime()
+
+# #     pass
+
+# async def handle_overdue(state:RecoveryState):
+#     if 7 <= overdue <= 14:
+#         print("Send an email")
+#     elif 15 <= overdue <= 29:
+#         print("Followup send urgency ")
+#     elif 30 <= overdue <= 44:
+#         print(f"handle senior contack")
+#     else:
+#         print("Sendd legal noices")
