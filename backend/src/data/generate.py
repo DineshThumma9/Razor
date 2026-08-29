@@ -38,12 +38,24 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 # Helpers
 # ---------------------------------------------------------------------------
 
+import requests
+
+WEBHOOK_URL = "http://localhost:8000/listen-events"
+
+def trigger_webhook(payload: dict):
+    try:
+        response = requests.post(WEBHOOK_URL, json=payload, timeout=5)
+        log(f"  → Webhook fired! Status: {response.status_code}")
+    except requests.exceptions.RequestException as e:
+        log(f"  [Warning] Failed to trigger webhook: {e}")
+
 CUSTOMERS = [
-    {"name": "Priya Sharma", "email": "priya@example.com", "contact": "9000000001"},
-    {"name": "Rahul Verma", "email": "rahul@example.com", "contact": "9000000002"},
-    {"name": "Ananya Singh", "email": "ananya@example.com", "contact": "9000000003"},
-    {"name": "Kiran Rao", "email": "kiran@example.com", "contact": "9000000004"},
-    {"name": "Suresh Mehta", "email": "suresh@example.com", "contact": "9000000005"},
+    {"name": "Dinesh Thumma", "email": "dineshthumma15@gmail.com", "contact": "9393519918"},
+    {"name": "Duct Dynamic", "email": "ductdynamic73@gmail.com", "contact": "9393519918"},
+    {"name": "Duct Dynamic 07", "email": "ductdynamic07@gmail.com", "contact": "9393519918"},
+    {"name": "Duct Dynamic 99", "email": "ductdynamic99@gmail.com", "contact": "9393519918"},
+    {"name": "Dinesh Thumma 0", "email": "dineshthumma0@gmail.com", "contact": "9393519918"},
+    {"name": "Student", "email": "23B81A7217@cvr.ac.in", "contact": "9393519918"},
 ]
 
 AMOUNTS_INR = [49900, 99900, 199900, 499900, 999900]  # paise
@@ -125,6 +137,31 @@ def generate_failed_payments(n: int = 5) -> list[dict]:
             f"  ✓ Failed payment [{i+1}/{n}]: {order['id']} | ₹{amount/100:.0f} | {customer['name']}"
         )
 
+        webhook_payload = {
+            "entity": "event",
+            "account_id": "acc_TestMode",
+            "event": "payment.failed",
+            "contains": ["payment"],
+            "payload": {
+                "payment": {
+                    "entity": {
+                        "id": f"pay_fail_{int(time.time())}_{i}",
+                        "entity": "payment",
+                        "amount": amount,
+                        "currency": "INR",
+                        "status": "failed",
+                        "order_id": order["id"],
+                        "email": customer["email"],
+                        "contact": customer["contact"],
+                        "error_description": order["notes"]["failure_reason"],
+                        "created_at": int(time.time()),
+                    }
+                }
+            },
+            "created_at": int(time.time())
+        }
+        trigger_webhook(webhook_payload)
+
     return records
 
 
@@ -145,14 +182,18 @@ def generate_abandoned_checkouts(n: int = 5) -> list[dict]:
         customer = rand_customer()
         amount = rand_amount()
 
-        order = client.order.create(
+        # Instead of an order, let's create a payment link to simulate abandoned checkout
+        link = client.payment_link.create(
             {
                 "amount": amount,
                 "currency": "INR",
-                "receipt": f"rcpt_abandon_{i}_{int(time.time())}",
+                "description": f"Checkout for {customer['name']}",
+                "customer": {
+                    "name": customer["name"],
+                    "email": customer["email"],
+                    "contact": customer["contact"],
+                },
                 "notes": {
-                    "customer_name": customer["name"],
-                    "customer_email": customer["email"],
                     "scenario": "checkout_abandoned",
                     "drop_step": random.choice(
                         [
@@ -169,20 +210,34 @@ def generate_abandoned_checkouts(n: int = 5) -> list[dict]:
         records.append(
             {
                 "type": "abandoned_checkout",
-                "order_id": order["id"],
+                "payment_link_id": link["id"],
                 "amount_paise": amount,
                 "amount_inr": amount / 100,
                 "currency": "INR",
                 "customer": customer,
-                "drop_step": order["notes"]["drop_step"],
+                "drop_step": link["notes"]["drop_step"],
                 "created_at": datetime.now(timezone.utc).isoformat(),
-                "status": "created",
+                "status": "expired",
                 "recovery_status": "pending",
             }
         )
         log(
-            f"  ✓ Abandoned checkout [{i+1}/{n}]: {order['id']} | ₹{amount/100:.0f} | dropped at: {order['notes']['drop_step']}"
+            f"  ✓ Abandoned checkout [{i+1}/{n}]: {link['id']} | ₹{amount/100:.0f} | dropped at: {link['notes']['drop_step']}"
         )
+
+        webhook_payload = {
+            "entity": "event",
+            "account_id": "acc_TestMode",
+            "event": "payment_link.expired",
+            "contains": ["payment_link"],
+            "payload": {
+                "payment_link": {
+                    "entity": link
+                }
+            },
+            "created_at": int(time.time())
+        }
+        trigger_webhook(webhook_payload)
 
     return records
 
@@ -264,6 +319,20 @@ def generate_failed_subscriptions(n: int = 3) -> list[dict]:
         )
         log(f"  ✓ Failed subscription [{i+1}/{n}]: {sub['id']} | {customer['name']}")
 
+        webhook_payload = {
+            "entity": "event",
+            "account_id": "acc_TestMode",
+            "event": "subscription.halted",
+            "contains": ["subscription"],
+            "payload": {
+                "subscription": {
+                    "entity": sub
+                }
+            },
+            "created_at": int(time.time())
+        }
+        trigger_webhook(webhook_payload)
+
     return records
 
 
@@ -328,6 +397,20 @@ def generate_overdue_invoices(n: int = 4) -> list[dict]:
         log(
             f"  ✓ Overdue invoice [{i+1}/{n}]: {invoice['id']} | ₹{amount/100:.0f} | {days_overdue}d overdue"
         )
+
+        webhook_payload = {
+            "entity": "event",
+            "account_id": "acc_TestMode",
+            "event": "invoice.expired",
+            "contains": ["invoice"],
+            "payload": {
+                "invoice": {
+                    "entity": invoice
+                }
+            },
+            "created_at": int(time.time())
+        }
+        trigger_webhook(webhook_payload)
 
     return records
 
