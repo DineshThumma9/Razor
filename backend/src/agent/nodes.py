@@ -1,3 +1,4 @@
+from config import settings
 from typing import Annotated, Sequence, TypedDict
 import operator
 from datetime import datetime, timedelta
@@ -14,6 +15,7 @@ from agent.tools import tools
 class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], operator.add]
     recovery_state: RecoveryState
+    event_source: str
 
 
 def analyze(state: AgentState):
@@ -65,22 +67,105 @@ Rule 3: Only call `complete_case` AFTER you have successfully executed the requi
     return {"messages": [SystemMessage(content=system_prompt)]}
 
 
-def decide(state: AgentState):
+def decide_event(state: AgentState):
     """
-    Calls the LLM to decide on the next tool to execute.
+    Phase 1: Deterministic fast-path for standard automated cases.
     """
-    llm = ChatMistralAI(model="mistral-medium-latest", temperature=0, max_retries=3)
+    rs = state["recovery_state"]
+    tools_to_call = []
+    
+    if rs.attempt_count >= 3 or rs.case_type == 'dispute':
+        tools_to_call.append({"name": "escalate_to_human", "args": {}})
+        
+    elif rs.case_type in ['failed_payment', 'failed_subscription']:
+        fail_reason = rs.failure_reason or ""
+        if "Insufficient funds" in fail_reason or "limit" in fail_reason.lower():
+            tools_to_call.append({"name": "get_next_salary_date", "args": {}})
+            tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": "Gentle reminder about your payment."}})
+        else:
+            tools_to_call.append({"name": "create_payment_link", "args": {}})
+            if rs.amount_inr > 5000:
+                tools_to_call.append({"name": "get_voice_call", "args": {"msg": "Namaste, your payment failed. Please check the link we sent."}})
+            else:
+                tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": "Your payment failed, please click the link to retry."}})
+                
+    elif rs.case_type == 'abandoned_checkout':
+        tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": "Complete your checkout with this 10% discount!"}})
+        
+    elif rs.case_type == 'overdue_invoice':
+        tools_to_call.append({"name": "send_email_reminder", "args": {"urgency": "urgent"}})
+
+    if tools_to_call:
+        tools_to_call.append({"name": "complete_case", "args": {"summary": "Deterministic routing completed."}})
+        
+        from langchain_core.messages import AIMessage
+        import uuid
+        
+        langchain_tool_calls = []
+        for t in tools_to_call:
+            langchain_tool_calls.append({
+                "name": t["name"],
+                "args": t["args"],
+                "id": f"call_{uuid.uuid4().hex[:8]}",
+                "type": "tool_call"
+            })
+            
+        print(f"\n[ROUTER] Deterministic Fast-Path triggered for case: {rs.case_id}")
+        ai_msg = AIMessage(content="Deterministic routing applied.", tool_calls=langchain_tool_calls)
+        return {"messages": [ai_msg]}
+
+    # Fallback if deterministic rules don't match an automated event (shouldn't happen)
+    print(f"\n[ROUTER] Warning: No deterministic rules matched for automated event in case {rs.case_id}")
+    return {"messages": []}
+
+
+def decide_reply(state: AgentState):
+    """
+    Phase 2: LLM routing for conversational replies (WhatsApp, Email).
+    """
+    rs = state["recovery_state"]
+    print(f"\n[ROUTER] LLM routing conversational reply for case: {rs.case_id}")
+    
+    # We provide a clean context to the LLM to avoid Mistral strict-ordering API errors
+    # caused by synthetic deterministic logs in the history.
+    system_prompt = f"""You are a revenue recovery agent for Renvue.
+    
+=== CURRENT CASE ===
+Customer     : {rs.customer.get('name', 'Unknown')}
+Amount owed  : ₹{rs.amount_inr}
+Case type    : {rs.case_type}
+Today's Date : {datetime.now().strftime('%Y-%m-%d')}
+
+=== RULES ===
+- If the customer specifies a date they will pay, use 'log_promise_to_pay'. Convert relative dates (like 'next monday') to YYYY-MM-DD using Today's Date.
+- If the customer asks a question, use 'send_whatsapp_msg' to reply.
+- ALWAYS call 'complete_case' after taking your action to end the workflow.
+"""
+    from langchain_core.messages import SystemMessage
+    
+    # We want to keep all messages starting from the FIRST HumanMessage.
+    # This strips away the old deterministic automated logs, but crucially preserves 
+    # the LLM's recent tool calls and responses so it doesn't get stuck in an infinite loop!
+    first_human_idx = next((i for i, m in enumerate(state["messages"]) if getattr(m, "type", "") == "human"), None)
+    
+    if first_human_idx is not None:
+        recent_messages = state["messages"][first_human_idx:]
+    else:
+        recent_messages = []
+        
+    clean_messages = [SystemMessage(content=system_prompt)] + recent_messages
+    
+    llm = ChatMistralAI(model=settings.model, temperature=0, max_retries=3)
     llm_with_tools = llm.bind_tools(tools, tool_choice="any")
     
     import time
     import random
     
-    # Initial stagger to spread out the 17 concurrent cases
     time.sleep(random.uniform(0.5, 3.0))
     
     for attempt in range(6):
         try:
-            response = llm_with_tools.invoke(state["messages"])
+            response = llm_with_tools.invoke(clean_messages)
             return {"messages": [response]}
         except Exception as e:
             if "429" in str(e) or "rate_limited" in str(e):
@@ -158,6 +243,9 @@ def after_execute(state: AgentState):
     If complete_case was just executed, we bypass the LLM and go straight to audit.
     """
     last_message = state["messages"][-1]
-    if last_message.name == "complete_case":
+    if getattr(last_message, "name", None) == "complete_case":
         return "audit"
-    return "decide"
+        
+    if state.get("event_source", "").startswith("inbound."):
+        return "decide_reply"
+    return "decide_event"

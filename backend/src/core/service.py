@@ -140,7 +140,7 @@ def handle_payment_event(payload: dict) -> dict:
             save_state(new_state)
             agent = build_agent(new_state)
             config = {"configurable": {"thread_id": new_state.case_id}}
-            agent.invoke({"messages": [], "recovery_state": new_state}, config=config)
+            agent.invoke({"messages": [], "recovery_state": new_state, "event_source": f"webhook.{event}"}, config=config)
             return {"status": "Agent started for new case"}
             
     return {"status": "ok"}
@@ -164,7 +164,7 @@ def handle_inbound_email(payload: dict) -> dict:
     agent = build_agent(state)
     config = {"configurable": {"thread_id": case_id}}
     agent.invoke(
-            {"messages": [new_message], "recovery_state": state}, 
+            {"messages": [new_message], "recovery_state": state, "event_source": "inbound.email"}, 
             config=config
         )
 
@@ -172,25 +172,36 @@ def handle_inbound_email(payload: dict) -> dict:
 
 
 def handle_inbound_whatsapp(from_number: str, body: str) -> dict:
+    print(f"\n[INBOUND WHATSAPP] Received message from {from_number}: {body}")
+    
+    # Twilio sends "whatsapp:+919393519918", database stores "9393519918"
     contact_number = from_number.replace("whatsapp:", "")
+    if contact_number.startswith("+91"):
+        contact_number = contact_number[3:]
+        
+    print(f"[INBOUND WHATSAPP] Looking for active case for contact: {contact_number}")
     
     active_case = None
     with Session(engine) as session:
         cases = session.exec(select(RecoveryState).where(RecoveryState.recovery_status.not_in(["recovered", "closed", "escalated"]))).all()
         for case in cases:
-            if case.customer.get("contact") == contact_number:
+            case_contact = case.customer.get("contact", "")
+            if case_contact == contact_number or case_contact.endswith(contact_number):
                 active_case = case
                 break
                 
     if not active_case:
+        print(f"[INBOUND WHATSAPP] Ignored: No active case found for {contact_number}")
         return {"status": "ignored", "reason": "No active case found for this number"}
+        
+    print(f"[INBOUND WHATSAPP] Matched case {active_case.case_id}. Waking up agent!")
         
     new_message = HumanMessage(content=f"Customer Replied via WhatsApp: {body}")
     agent = build_agent(active_case)
     config = {"configurable": {"thread_id": active_case.case_id}}
     
     agent.invoke(
-        {"messages": [new_message], "recovery_state": active_case}, 
+        {"messages": [new_message], "recovery_state": active_case, "event_source": "inbound.whatsapp"}, 
         config=config
     )
     
