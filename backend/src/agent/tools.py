@@ -13,7 +13,7 @@ from config import settings
 from db import load_state, save_state
 from core.models import AuditEntry
 
-from main import client
+from core.clients import razorpay_client as client
 
 email_messages = {
     'gentle': "Hi {name},<br><br>We noticed your recent payment of ₹{amount} failed. Please ensure your account has sufficient funds. We'll retry soon.<br><br>Thanks,<br>The Team",
@@ -29,6 +29,24 @@ class EmailReminderArgs(BaseModel):
 
 
 from worker import invoke_agent_task
+from worker import app 
+
+from pydantic import BaseModel,Field
+class PromiseToPayArgs(BaseModel):
+    reason: str = Field(description="The reason the user gave for the delay.")
+    date_str: str = Field(description="The ISO format date (YYYY-MM-DD) the user promised to pay by.")
+
+
+class CompleteCaseArgs(BaseModel):
+    summary: str = Field(default="Case completed.", description="Summary of actions taken to resolve the case.")
+
+class PaymentLinkArgs(BaseModel):
+    pass # No arguments needed!
+
+class EscalateArgs(BaseModel):
+    reason: str = Field(description="Detailed reason for why this case is being escalated.")
+
+
 
 @tool(args_schema=EmailReminderArgs)
 def send_email_reminder(urgency: str,config: RunnableConfig) -> str:
@@ -74,8 +92,6 @@ def send_email_reminder(urgency: str,config: RunnableConfig) -> str:
     return f"Email ({urgency}) queued for {customer_email}"
 
 
-class PaymentLinkArgs(BaseModel):
-    pass # No arguments needed!
 
 @tool(args_schema=PaymentLinkArgs)
 def create_payment_link(config: RunnableConfig) -> str:
@@ -123,9 +139,6 @@ def create_payment_link(config: RunnableConfig) -> str:
 
     return short_url
 
-
-class EscalateArgs(BaseModel):
-    reason: str = Field(description="Detailed reason for why this case is being escalated.")
 
 @tool(args_schema=EscalateArgs)
 def escalate_to_human(reason: str, config: RunnableConfig) -> str:
@@ -182,9 +195,6 @@ def get_next_salary_date() -> str:
     return result
 
 
-class CompleteCaseArgs(BaseModel):
-    summary: str = Field(default="Case completed.", description="Summary of actions taken to resolve the case.")
-
 @tool(args_schema=CompleteCaseArgs)
 def complete_case(summary: str) -> str:
     """
@@ -195,20 +205,24 @@ def complete_case(summary: str) -> str:
     print(f"    → Summary : {summary}")
     return "Case workflow completed."
 
-from main import twilo_client, elevenlabs
+from core.clients import twilo_client, elevenlabs_client as elevenlabs
 
 @tool 
-def send_whatsapp_msg(msg:str, config: RunnableConfig):
+def send_whatsapp_msg(msg:str,contact_number:str,config: RunnableConfig):
     """
     Sends a WhatsApp message to the customer using Twilio.
     msg is the content of the message.
     """
 
-# Send the WhatsApp message
+    # Ensure the number has the country code
+    if not contact_number.startswith("+"):
+        contact_number = "+91" + contact_number
+
+    # Send the WhatsApp message
     message = twilo_client.messages.create(
-        from_="whatsapp:+14155238886",  # Your Twilio Sandbox number
+        from_=f"whatsapp:{settings.twilo_whatsapp_number}",  # Your Twilio Sandbox number
         body=msg,
-        to="whatsapp:+1234567890"       # The recipient's WhatsApp number (with country code)
+        to=f"whatsapp:{contact_number}"       # The recipient's WhatsApp number (with country code)
         )
 
     case_id = config.get("configurable", {}).get("thread_id")
@@ -219,29 +233,56 @@ def send_whatsapp_msg(msg:str, config: RunnableConfig):
 
 
 
+import requests
+
 @tool
 def get_voice_call(msg:str, config: RunnableConfig):
     """
-    Initiates an AI voice call using ElevenLabs to the customer.
+    Initiates an AI voice call using ElevenLabs to the customer, and sends it as a WhatsApp voice note.
     msg is the text to speak.
     """
 
-    audio = elevenlabs.text_to_speech.convert(
+    print(f"\n  [TOOL] get_voice_call -> Generating ElevenLabs Voice...")
+    audio_stream = elevenlabs.text_to_speech.convert(
         text=msg,
         voice_id="JBFqnCBsd6RMkjVDRZzb",
         model_id="eleven_v3",
     )
+    
+    audio_bytes = b"".join(audio_stream)
+
+    # Upload to catbox to get a public URL for Twilio
+    print(f"  [TOOL] get_voice_call -> Uploading to catbox.moe for Twilio...")
+    response = requests.post(
+        "https://catbox.moe/user/api.php", 
+        data={"reqtype": "fileupload"}, 
+        files={"fileToUpload": ("voice.mp3", audio_bytes, "audio/mpeg")}
+    )
+    media_url = response.text.strip()
+    print(f"  [TOOL] get_voice_call -> Audio URL: {media_url}")
 
     case_id = config.get("configurable", {}).get("thread_id")
+    state = load_state(case_id)
+    contact_number = state.customer.get("contact", "")
+    
+    if not contact_number.startswith("+"):
+        contact_number = "+91" + contact_number
+
+    # Send the WhatsApp message with the audio
+    print(f"  [TOOL] get_voice_call -> Dispatching Twilio WhatsApp Message...")
+    message = twilo_client.messages.create(
+        from_=f"whatsapp:{settings.twilo_whatsapp_number}",
+        body="🎙️ (Voice Note attached) " + msg,
+        media_url=[media_url],
+        to=f"whatsapp:{contact_number}"
+    )
+
+    invoke_agent_task.apply_async(args=[case_id], countdown=2*86400)
+
+    return f"Voice note dispatched successfully to {contact_number}! SID: {message.sid}"
     invoke_agent_task.apply_async(args=[case_id], countdown=2*86400)
 
     return audio
-from worker import app 
-
-from pydantic import BaseModel,Field
-class PromiseToPayArgs(BaseModel):
-    reason: str = Field(description="The reason the user gave for the delay.")
-    date_str: str = Field(description="The ISO format date (YYYY-MM-DD) the user promised to pay by.")
 
 @tool(args_schema=PromiseToPayArgs)
 def log_promise_to_pay(date_str: str, reason: str, config: RunnableConfig):

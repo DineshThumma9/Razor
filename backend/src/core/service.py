@@ -9,7 +9,7 @@ from core.models import RecoveryState
 from agent.graph import build_agent
 from config import settings
 from db import engine, load_state, save_state
-from main import client
+from core.clients import razorpay_client as client
 
 HANDLED_EVENTS = [
     "payment.failed", 
@@ -117,8 +117,22 @@ def handle_payment_event(payload: dict) -> dict:
     event = payload.get("event")
     
     if event == "payment.captured":
-        # Handle success logic here
-        pass 
+        amount = payload.get("payload", {}).get("payment", {}).get("entity", {}).get("amount", 0) / 100.0
+        contact = payload.get("payload", {}).get("payment", {}).get("entity", {}).get("contact", "")
+        if contact:
+            contact_number = contact.replace("+91", "").replace(" ", "") # normalise
+            with Session(engine) as session:
+                # Find any pending case for this customer's contact
+                cases = session.exec(select(RecoveryState).where(RecoveryState.recovery_status.not_in(["recovered", "closed", "escalated"]))).all()
+                for case in cases:
+                    db_contact = case.customer.get("contact", "").replace("+91", "").replace(" ", "")
+                    if db_contact == contact_number:
+                        case.recovery_status = "recovered"
+                        case.recovered_amount = amount
+                        session.add(case)
+                        session.commit()
+                        return {"status": f"Case {case.case_id} marked as recovered!"}
+        return {"status": "ok, but no active case matched contact"} 
         
     elif event in ["payment.failed", "payment_link.expired", "subscription.halted", "invoice.expired"]:
         new_state = parse_webhook(payload)

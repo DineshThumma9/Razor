@@ -38,23 +38,29 @@ Last action  : {rs.last_action_taken or 'None'}
 Audit log    : {rs.audit_log if rs.audit_log else 'Empty'}
 
 === DECISION RULES ===
-- HARD decline (card expired, card lost, stolen, do not honour, invalid CVV):
-    → create_payment_link so customer can re-enter card details
+- If the customer replies via email or WhatsApp and specifies a date they will pay, use 'log_promise_to_pay' AND 'send_whatsapp_msg'.
 
-- SOFT decline (insufficient funds, limit exceeded):
-    → get_next_salary_date to find the best retry date
-    → send_email_reminder with urgency='gentle' (for 1st attempt) or 'urgent' (for 2nd)
+- If Case type is 'failed_payment' or 'failed_subscription':
+    → If Failure contains "Insufficient funds" or "limit": 
+         Call BOTH 'get_next_salary_date' AND 'send_whatsapp_msg' in your first response.
+    → Otherwise (Hard decline): 
+         If Amount > 5000: Call BOTH 'create_payment_link' AND 'get_voice_call' in your first response.
+         If Amount <= 5000: Call BOTH 'create_payment_link' AND 'send_whatsapp_msg' in your first response.
+         DO NOT use send_email_reminder for failed payments!
 
-- If attempt_count >= 3: escalate_to_human immediately
+- If Case type is 'abandoned_checkout':
+    → Use 'send_whatsapp_msg' immediately with a discount or gentle nudge.
 
-- If case_type is 'dispute': escalate_to_human immediately
+- If Case type is 'overdue_invoice' (B2B):
+    → Use 'send_email_reminder' with urgency='urgent'.
 
-- Abandoned checkout: send_email_reminder with urgency='gentle'
+- If attempt_count >= 3 or Case type is 'dispute':
+    → Use 'escalate_to_human' immediately.
 
-- Overdue invoice: send_email_reminder with urgency='urgent'
-
-If you need to take action, select and execute exactly ONE tool. 
-If you have already executed all necessary tools for this case based on the rules, call the 'complete_case' tool to finish. Do NOT call audit tools."""
+CRITICAL INSTRUCTION: You MUST take action on EVERY new case. 
+Rule 1: For failed_payment > 5000, you MUST call BOTH `create_payment_link` AND `get_voice_call` simultaneously.
+Rule 2: NEVER call `send_email_reminder` for failed_payment.
+Rule 3: Only call `complete_case` AFTER you have successfully executed the required action tools. Do NOT call `complete_case` as your first action."""
 
     return {"messages": [SystemMessage(content=system_prompt)]}
 
@@ -63,16 +69,28 @@ def decide(state: AgentState):
     """
     Calls the LLM to decide on the next tool to execute.
     """
-    llm = ChatMistralAI(model="ministral-14b-2512", temperature=0)
+    llm = ChatMistralAI(model="mistral-medium-latest", temperature=0, max_retries=3)
     llm_with_tools = llm.bind_tools(tools, tool_choice="any")
     
     import time
-    time.sleep(2) # Prevent Mistral API rate limit
+    import random
     
-    # We pass the conversation history to the LLM
-    response = llm_with_tools.invoke(state["messages"])
+    # Initial stagger to spread out the 17 concurrent cases
+    time.sleep(random.uniform(0.5, 3.0))
     
-    return {"messages": [response]}
+    for attempt in range(6):
+        try:
+            response = llm_with_tools.invoke(state["messages"])
+            return {"messages": [response]}
+        except Exception as e:
+            if "429" in str(e) or "rate_limited" in str(e):
+                backoff = random.uniform(3.0, 8.0) * (attempt + 1)
+                print(f"[RATE LIMIT] Mistral 429 hit. Retrying in {backoff:.1f}s (Attempt {attempt+1}/6)...")
+                time.sleep(backoff)
+            else:
+                raise e
+                
+    raise Exception("Mistral API rate limit exceeded after maximum retries.")
 
 
 # The execute node is simply a ToolNode wrapper that will run the tools requested by the LLM

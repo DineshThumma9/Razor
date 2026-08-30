@@ -26,5 +26,6 @@ dependencies = [
     "twilio>=9.11.0",
     "elevenlabs>=2.65.0",
     "redis>=8.1.0",
+    "python-multipart>=0.0.32",
 ]
 

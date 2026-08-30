@@ -31,6 +31,22 @@ from config import Settings
 settings = Settings()
 client = razorpay.Client(auth=(settings.razorpay_key_id, settings.razorpay_key_secret))
 
+# --- Rate Limiter Fix ---
+original_request = client.request
+def retrying_request(method, path, **options):
+    for attempt in range(10):
+        try:
+            return original_request(method, path, **options)
+        except razorpay.errors.BadRequestError as e:
+            if "Too many requests" in str(e) or "Too Many Requests" in str(e):
+                log(f"  [Rate Limit] Hit Razorpay throttle. Sleeping {2 * (attempt + 1)}s...")
+                time.sleep(2 * (attempt + 1))
+            else:
+                raise e
+    raise Exception("Razorpay rate limit retries exhausted!")
+client.request = retrying_request
+# ------------------------
+
 OUTPUT_DIR = Path(__file__).parent.parent.parent / "data"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
@@ -93,31 +109,37 @@ def generate_failed_payments(n: int = 5) -> list[dict]:
     records = []
 
     for i in range(n):
+        time.sleep(2)
         customer = rand_customer()
         amount = rand_amount()
 
-        # Create an order (represents a payment attempt that never completed)
-        order = client.order.create(
-            {
-                "amount": amount,
-                "currency": "INR",
-                "receipt": f"rcpt_fail_{i}_{int(time.time())}",
-                "notes": {
-                    "customer_name": customer["name"],
-                    "customer_email": customer["email"],
-                    "scenario": "failed_payment",
-                    "failure_reason": random.choice(
-                        [
-                            "Insufficient funds",
-                            "Card declined by issuer",
-                            "3DS authentication failed",
-                            "Invalid CVV",
-                            "Card expired",
-                        ]
-                    ),
-                },
-            }
+        # Check if we are forcing a Voice Note test case
+        import sys
+        is_voice_test = "--test-voice-whatsapp" in sys.argv
+
+        failure_reason = "Card expired" if is_voice_test else random.choice(
+            [
+                "Insufficient funds",
+                "Card declined by issuer",
+                "3DS authentication failed",
+                "Invalid CVV",
+                "Card expired",
+            ]
         )
+
+        # Mock an order (represents a payment attempt that never completed)
+        order = {
+            "id": f"order_mock_{int(time.time())}_{i}",
+            "amount": amount,
+            "currency": "INR",
+            "receipt": f"rcpt_fail_{i}_{int(time.time())}",
+            "notes": {
+                "customer_name": customer["name"],
+                "customer_email": customer["email"],
+                "scenario": "failed_payment",
+                "failure_reason": failure_reason,
+            },
+        }
 
         records.append(
             {
@@ -179,33 +201,34 @@ def generate_abandoned_checkouts(n: int = 5) -> list[dict]:
     records = []
 
     for i in range(n):
+        time.sleep(1.5)
         customer = rand_customer()
         amount = rand_amount()
 
-        # Instead of an order, let's create a payment link to simulate abandoned checkout
-        link = client.payment_link.create(
-            {
-                "amount": amount,
-                "currency": "INR",
-                "description": f"Checkout for {customer['name']}",
-                "customer": {
-                    "name": customer["name"],
-                    "email": customer["email"],
-                    "contact": customer["contact"],
-                },
-                "notes": {
-                    "scenario": "checkout_abandoned",
-                    "drop_step": random.choice(
-                        [
-                            "payment_method_selection",
-                            "card_details_entry",
-                            "otp_verification",
-                            "address_confirmation",
-                        ]
-                    ),
-                },
-            }
-        )
+        # Instead of an order, let's create a mock payment link to simulate abandoned checkout
+        # (This bypasses the absolute limit of 30 payment links in Razorpay Test Mode)
+        link = {
+            "id": f"plink_mock_{int(time.time())}_{i}",
+            "amount": amount,
+            "currency": "INR",
+            "description": f"Checkout for {customer['name']}",
+            "customer": {
+                "name": customer["name"],
+                "email": customer["email"],
+                "contact": customer["contact"],
+            },
+            "notes": {
+                "scenario": "checkout_abandoned",
+                "drop_step": random.choice(
+                    [
+                        "payment_method_selection",
+                        "card_details_entry",
+                        "otp_verification",
+                        "address_confirmation",
+                    ]
+                ),
+            },
+        }
 
         records.append(
             {
@@ -259,48 +282,48 @@ def generate_failed_subscriptions(n: int = 3) -> list[dict]:
     log(f"Generating {n} failed subscription records...")
     records = []
 
-    # Create a test plan once
-    plan = client.plan.create(
-        {
-            "period": "monthly",
-            "interval": 1,
-            "item": {
-                "name": "Renvue Pro — Test Plan",
-                "amount": 99900,
-                "currency": "INR",
-                "description": "Monthly subscription (test)",
-            },
-        }
-    )
+    # Mock a test plan once
+    plan = {
+        "id": f"plan_mock_{int(time.time())}",
+        "period": "monthly",
+        "interval": 1,
+        "item": {
+            "name": "Renvue Pro — Test Plan",
+            "amount": 99900,
+            "currency": "INR",
+            "description": "Monthly subscription (test)",
+        },
+    }
     log(f"  → Created plan: {plan['id']}")
 
     for i in range(n):
+        time.sleep(3)
         customer = rand_customer()
         # future start so Razorpay accepts it
         start_at = int((datetime.now(timezone.utc) + timedelta(hours=1)).timestamp())
-
-        sub = client.subscription.create(
-            {
-                "plan_id": plan["id"],
-                "total_count": 12,
-                "quantity": 1,
-                "start_at": start_at,
-                "customer_notify": 0,
-                "notes": {
-                    "customer_name": customer["name"],
-                    "customer_email": customer["email"],
-                    "scenario": "failed_subscription",
-                    "halt_reason": random.choice(
-                        [
-                            "Card expired during renewal",
-                            "Insufficient balance on renewal date",
-                            "Customer card replaced",
-                            "Mandate rejected by bank",
-                        ]
-                    ),
-                },
-            }
-        )
+        
+        # Mock subscription
+        sub = {
+            "id": f"sub_mock_{int(time.time())}_{i}",
+            "plan_id": plan["id"],
+            "total_count": 12,
+            "customer_notify": 1,
+            "start_at": start_at,
+            "notes": {
+                "customer_name": customer["name"],
+                "customer_email": customer["email"],
+                "customer_contact": customer["contact"],
+                "scenario": "subscription_halted",
+                "halt_reason": random.choice(
+                    [
+                        "Payment method expired",
+                        "Insufficient funds",
+                        "User cancellation",
+                        "Declined by bank"
+                    ]
+                )
+            },
+        }
 
         records.append(
             {
@@ -350,6 +373,7 @@ def generate_overdue_invoices(n: int = 4) -> list[dict]:
     records = []
 
     for i in range(n):
+        time.sleep(1.5)
         customer = rand_customer()
         amount = rand_amount()
         days_overdue = random.randint(7, 60)
@@ -357,32 +381,43 @@ def generate_overdue_invoices(n: int = 4) -> list[dict]:
             (datetime.now(timezone.utc) - timedelta(days=days_overdue)).timestamp()
         )
 
-        invoice = client.invoice.create(
-            {
-                "type": "invoice",
-                "description": f"B2B Service Invoice #{1000 + i}",
-                "due_by": due_by,
-                "customer": {
-                    "name": customer["name"],
-                    "email": customer["email"],
-                    "contact": customer["contact"],
-                },
-                "line_items": [
-                    {
-                        "name": "Professional Services",
-                        "amount": amount,
-                        "currency": "INR",
-                        "quantity": 1,
-                    }
-                ],
-            }
-        )
+        # Mock customer
+        rzp_cust = {
+            "id": f"cust_mock_{int(time.time())}_{i}",
+            "name": customer["name"],
+            "email": customer["email"],
+            "contact": customer["contact"],
+        }
+        
+        # Mock invoice
+        inv = {
+            "id": f"inv_mock_{int(time.time())}_{i}",
+            "type": "invoice",
+            "description": f"Monthly billing for {customer['name']}",
+            "customer_id": rzp_cust["id"],
+            "amount": amount,
+            "currency": "INR",
+            "date": int(time.time()),
+            "line_items": [
+                {
+                    "name": "Software License",
+                    "description": "Monthly API access",
+                    "amount": amount,
+                    "currency": "INR",
+                    "quantity": 1,
+                }
+            ],
+            "notes": {
+                "scenario": "overdue_invoice",
+                "days_overdue": days_overdue,
+            },
+        }
 
         records.append(
             {
                 "type": "overdue_invoice",
-                "invoice_id": invoice["id"],
-                "invoice_number": invoice.get("invoice_number"),
+                "invoice_id": inv["id"],
+                "invoice_number": f"INV-{1000 + i}",
                 "amount_paise": amount,
                 "amount_inr": amount / 100,
                 "currency": "INR",
@@ -395,7 +430,7 @@ def generate_overdue_invoices(n: int = 4) -> list[dict]:
             }
         )
         log(
-            f"  ✓ Overdue invoice [{i+1}/{n}]: {invoice['id']} | ₹{amount/100:.0f} | {days_overdue}d overdue"
+            f"  ✓ Overdue invoice [{i+1}/{n}]: {inv['id']} | ₹{amount/100:.0f} | {days_overdue}d overdue"
         )
 
         webhook_payload = {
@@ -405,7 +440,7 @@ def generate_overdue_invoices(n: int = 4) -> list[dict]:
             "contains": ["invoice"],
             "payload": {
                 "invoice": {
-                    "entity": invoice
+                    "entity": inv
                 }
             },
             "created_at": int(time.time())
@@ -420,17 +455,52 @@ def generate_overdue_invoices(n: int = 4) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
+import argparse
+
 def main():
+    parser = argparse.ArgumentParser(description="Generate mock Renvue cases.")
+    parser.add_argument("--payment", type=int, default=0, help="Number of failed payments to generate")
+    parser.add_argument("--checkout", type=int, default=0, help="Number of abandoned checkouts to generate")
+    parser.add_argument("--subscription", type=int, default=0, help="Number of failed subscriptions to generate")
+    parser.add_argument("--invoice", type=int, default=0, help="Number of overdue invoices to generate")
+    parser.add_argument("--test-voice-whatsapp", action="store_true", help="Generate a single failed payment with amount > ₹5000 to trigger WhatsApp and Voice Note")
+    parser.add_argument("--all", action="store_true", help="Generate all cases (the original 17 cases)")
+    
+    args = parser.parse_args()
+
     print("\n" + "=" * 60)
     print("  Renvue — Razorpay Sample Data Generator")
     print("=" * 60 + "\n")
 
     all_cases = []
+    
+    if args.all:
+        args.payment = 5
+        args.checkout = 5
+        args.subscription = 3
+        args.invoice = 4
 
-    all_cases.extend(generate_failed_payments(n=5))
-    all_cases.extend(generate_abandoned_checkouts(n=5))
-    all_cases.extend(generate_failed_subscriptions(n=3))
-    all_cases.extend(generate_overdue_invoices(n=4))
+    if args.payment == 0 and args.checkout == 0 and args.subscription == 0 and args.invoice == 0 and not args.test_voice_whatsapp:
+        print("No cases generated! Please use flags like --payment 2, --test-voice-whatsapp, or --all.")
+        return
+
+    if args.test_voice_whatsapp:
+        # Override random amount globally for this single test case
+        global AMOUNTS_INR
+        AMOUNTS_INR = [999900]
+        args.payment = 1
+
+    if args.payment > 0:
+        all_cases.extend(generate_failed_payments(n=args.payment))
+        time.sleep(2)
+    if args.checkout > 0:
+        all_cases.extend(generate_abandoned_checkouts(n=args.checkout))
+        time.sleep(2)
+    if args.subscription > 0:
+        all_cases.extend(generate_failed_subscriptions(n=args.subscription))
+        time.sleep(2)
+    if args.invoice > 0:
+        all_cases.extend(generate_overdue_invoices(n=args.invoice))
 
     output_file = OUTPUT_DIR / "sample_cases.json"
     with open(output_file, "w") as f:
