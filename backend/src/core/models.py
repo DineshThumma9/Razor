@@ -1,6 +1,5 @@
 
-
-from pydantic import BaseModel
+from pydantic import BaseModel,Any 
 from typing import Optional,Dict
 from datetime import datetime 
 
@@ -53,3 +52,122 @@ class RecoveryState(SQLModel, table=True):
 
 
 
+
+class Invoice(BaseModel):
+    pass 
+
+class Order(BaseModel):
+    pass 
+
+class Payment(BaseModel):
+    pass 
+
+class PaymentLink(BaseModel):
+    pass
+
+
+class Customer(BaseModel):
+    customer_id:Optional[str] 
+    name:Optional[str] 
+    email:Optional[str] 
+    contact:Optional[str]
+    prefreed_lang:Optional[str]
+    notes:Optional[List[str]]
+
+
+
+class PaymentError(BaseModel):
+    code:str 
+    desc:str 
+    reason:str 
+    step:str 
+    source:str 
+
+
+class Card(BaseModel):
+    id:str 
+    type:str 
+    network:str 
+    issuer:str 
+    international:bool
+    last4:str 
+    sub_type:str 
+    iin:str 
+    emi:bool 
+
+
+class UPI(BaseModel):
+    payer:str 
+    vpa:str 
+    flow:str 
+
+
+class NetBanking(BaseModel):
+    pass 
+
+class Wallet(BaseModel):
+    pass 
+
+
+class PaymentMethod(BaseModel):
+    card:Optional[Card] 
+    upi:Optional[UPI]
+    net_banking:Optional[NetBanking]
+    wallet:Optional[Wallet]
+
+
+
+class AdditionalInformation(BaseModel):
+    info:Dict[str,str]
+
+class AmountInvolved(BaseModel):
+    amount:str 
+    currency:str 
+    base_amount:str 
+    amount_in_paise:str 
+    amount_paid:Optional[str]
+    amount_due:Optional[str]
+
+class AcquirerData(BaseModel):
+    transaction_id:str 
+    rrn:str 
+
+
+class Subscription(BaseModel):
+    pass 
+
+class PayementIDs(BaseModel):
+    order_id:Optional[str]
+    payment_id:Optional[str]
+    invoice_id:Optional[str]
+    plan_id:Optional[str]
+    offer_id:Optional[str]
+    token_id:Optional[str]
+
+
+
+class Instrument(BaseModel):
+    pass 
+
+class PaymentDowntime(BaseModel):
+    id:str 
+    method:str 
+    begin:int
+    end:Optional[int]
+    status:str 
+    scheduled:bool 
+    severity: str 
+    instrument:Instrument 
+    instrument_schema:Any 
+    created_at: int 
+    updated_at: int 
+
+
+class RazorPayEvent(BaseModel):
+    entities: Invoice | Order | PaymentLink | Payment | Subscription 
+    payment_method:PaymentMethod
+    error:PaymentError
+    customer:Customer
+    amount:AmountInvolved
+
+    pass 

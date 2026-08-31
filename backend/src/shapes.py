@@ -547,6 +547,9 @@
 #         "wallet": null
 #       }
 #     },
+
+
+
 #     "payment_link": {
 #       "entity": {
 #         "accept_partial": false,
@@ -586,3 +589,144 @@
 #     }
 #   }
 # }
+
+
+# payment.failed
+# payment.captured
+# payment.downtime.started
+# payment.downtime.updated
+# payment.downtime.resloved
+# invoice.partially_paid
+# invoice.expired
+# subscription.halted
+# subscription.cancelled
+# payment_link.partially_paid
+# payment_link.expired
+# payment_link.canelled
+# payment_link.paid
+# order.paid
+# order.notification.delivered
+# order.notification.failed
+# invoice.paid
+# subscription.completed
+# subscription.charged
+# subscription.updated
+
+
+# payment.authorized
+
+
+
+# payment.dispute.created
+# payment.dispute.won
+# payment.dispute.lost
+# payment.dispute.closed
+# payment.dispute.under_review
+# payment.dispute.action_required
+
+
+# subscription.authenticated
+# subscription.paused
+# subscription.resumed
+# subscription.activated
+
+
+
+
+# refund.speed_changed
+# refund.failed
+# refund.processed
+# refund.created
+
+# payout.processed
+# payout.reversed
+# payout.initiated
+# payout.updated
+# payout.rejected
+# payout.pending 
+
+
+
+# Key Changes Introduced in the 2026 Update
+# The 2026 framework introduces specific, user-facing changes that affect how recurring payments are authenticated, monitored, and controlled.
+
+# No AFA for collections up to ₹15,000: Recurring collections within this limit go through without per-cycle OTP authentication.
+# The ₹1 lakh threshold: For insurance premiums, mutual fund subscriptions, and credit card bill payments, the no-AFA limit is ₹1,00,000.
+# Mandatory 24-hour pre-debit notifications: Collecting entities must notify customers at least 24 hours before every debit, with full transaction details and an opt-out facility.
+# Mandatory post-debit confirmations: Every successful collection must be followed by a confirmation alert to the customer.
+# Zero charges: The e-mandate facility comes at no cost to either business or customer.
+# Mandate continuity on card reissuance: If a customer's card is reissued, existing mandates carry over automatically.
+# Standardised liability protection: RBI's existing rules on limiting liability for unauthorised transactions now explicitly extend to e-mandate payments.
+# The ₹15,000 No-OTP Rule
+# This is the headline change in the 2026 framework.
+
+# The first transaction under any new mandate always requires AFA. But for every subsequent recurring transaction, the rules now work like this:
+
+# Recurring payments up to ₹15,000 per transaction go through automatically, without requiring a fresh OTP each cycle.
+# Payments above ₹15,000 will continue to require authentication every time. The only exception is the ₹1 lakh threshold, which covers three specific payment categories explained below.
+# In practice: if you're collecting a ₹5,000 monthly subscription fee, a ₹8,000 EMI instalment, or a ₹12,000 recurring vendor payment, once the mandate is registered, these collections will go through automatically without authentication failures or manual intervention.
+
+# The ₹1 Lakh Limit for Insurance, SIPs, and Credit Card Bills
+# The RBI has carved out a higher threshold for three specific categories of recurring payments:
+
+# Insurance premiums
+# Mutual fund subscriptions
+# Credit card bill payments
+# For these three categories, the no-AFA limit is ₹1,00,000 per transaction. Insurance premiums for term life or health cover, SIP instalments, and credit card full-bill payments routinely run above ₹15,000 per cycle. The ₹1 lakh threshold removes the per-cycle OTP requirement for these categories only.
+
+# EMI collections above ₹15,000 are not covered by this exception. Loan repayments above ₹15,000 per cycle continue to require OTP each time.
+
+# Running mandate-based collections above ₹15,000?
+# RocketPay handles per-cycle AFA automatically. No manual follow-up, no missed debits. Built for NBFCs and lenders.
+
+
+
+# The framework places compliance accountability on acquirers and the merchants they onboard. As a business collecting recurring payments, you are required to send customers a notification at least 24 hours before every debit.
+
+# The pre-debit notice must contain:
+
+# Merchant's name
+# Transaction amount
+# Date and time of debit
+# Mandate reference number
+# Reason for debit
+# Additionally, the notification must include an option to opt out of that specific transaction or withdraw the mandate entirely. If a customer opts out, the debit is immediately stopped. The mandate itself remains active for future cycles unless explicitly withdrawn.
+
+# Mandate withdrawal stops the automatic collection. The underlying debt remains. A borrower who cancels a mandate still owes the money, and lenders can pursue recovery through other means.
+
+# Post-Debit Confirmations
+# After every debit under an RBI e-mandate, businesses must send a post-transaction notification to their customers. The notification must contain:
+
+# Merchant's name
+# Amount debited
+# Date and time of debit
+# Transaction reference number
+# Mandate reference number
+# Reason for debit
+# Grievance redressal details
+# As a business, this documented trail works in your favour too. Every post-debit confirmation creates a verified record of the collection, reducing the time and effort involved in resolving payment disputes.
+
+# Charges for E-Mandate Services
+# The framework is explicit: no charges can be levied on the customer for using the e-mandate facility for recurring transactions.
+
+# For businesses, the RBI has deregulated service charges levied by sponsor banks on user institutions. While processing charges for ECS were previously waived, sponsor banks may now charge businesses fees for infrastructure setup. Payment gateways or acquiring banks may charge a small per-transaction processing fee for managing e-mandates. Some banks also charge a one-time validation fee for creating a new mandate, typically between ₹50 and ₹200. This varies by bank.
+
+# How Auto-Payment Registration Works Under the New Framework
+# The registration process for auto-payments under the 2026 framework remains consistent with earlier rules. Before any recurring auto-debit can begin, your customer must complete a one-time registration. The mandate activates only after a successful AFA (typically an OTP), along with the issuer's standard verification process.
+
+# As the collecting entity, you initiate registration by sending the customer a mandate request. They authenticate it, and from that point, collections run automatically within the agreed terms.
+
+# What These Changes Mean for Your Business
+# In practice, this is what changes for lenders and businesses:
+
+# Subscriptions and recurring payments under ₹15,000 go through automatically, with no per-cycle OTP needed.
+# Insurance premiums, SIPs, and credit card bill payments up to ₹1,00,000 also go through without per-cycle AFA.
+# EMI collections above ₹15,000 continue to require per-cycle authentication.
+# Pre-debit and post-debit notifications are mandatory compliance requirements, not optional communications.
+# Conclusion
+# Most businesses running mandate-based collections factor in a certain percentage of failed payments into their monthly P&L, due to multiple reasons.
+
+# The 2026 RBI e-mandate framework addresses these gaps directly. Fewer authentication failures, fewer disputes through mandatory payment reminders, and a documented trail for every transaction. The framework also gives businesses standardised liability protection when something goes wrong.
+
+# For businesses managing recurring collections, the practical outcome is straightforward. Payments that should run automatically will now actually do so, with fewer failures, fewer delays, and a clear compliance structure behind every transaction.
+

@@ -24,7 +24,6 @@ def parse_webhook(payload: dict) -> RecoveryState | None:
     if event not in HANDLED_EVENTS:
         return None 
     
-    # If payment captured, we don't return a new RecoveryState, we should just update existing.
     if event == "payment.captured":
         return None 
         
@@ -44,9 +43,12 @@ def parse_webhook(payload: dict) -> RecoveryState | None:
             customer["name"] = cust.get("name", "Customer")
             customer["email"] = cust.get("email", "")
             customer["contact"] = cust.get("contact", "")
-            language = cust.get("notes", {}).get("language", "english")
         except Exception:
-            pass
+            notes = s.get("notes") or {}
+            customer["name"] = notes.get("customer_name", "Customer")
+            customer["email"] = notes.get("customer_email", "")
+            customer["contact"] = notes.get("customer_contact", "")
+            language = notes.get("language", "english")
         case_id = s.get("id")
         source_id = s.get("plan_id", "unknown")
         
@@ -85,7 +87,6 @@ def parse_webhook(payload: dict) -> RecoveryState | None:
         amount = float(s.get("amount", 0)) / 100.0
         failure_reason = s.get("error_description", "Unknown")
 
-    # Determine case_type dynamically
     case_type = "failed_payment"
     if "subscription" in contains:
         case_type = "failed_subscription"
@@ -93,12 +94,20 @@ def parse_webhook(payload: dict) -> RecoveryState | None:
         case_type = "overdue_invoice"
     elif "payment_link" in contains:
         case_type = "abandoned_checkout"
+        
+    decline_type = None
+    if case_type in ['failed_payment', 'failed_subscription']:
+        fail_lower = failure_reason.lower()
+        if "insufficient funds" in fail_lower or "limit" in fail_lower:
+            decline_type = "soft"
+        else:
+            decline_type = "hard"
 
     return RecoveryState(
         case_id = case_id or str(uuid.uuid4()),
         source_id = source_id,            
         case_type = case_type,
-        decline_type= None,   
+        decline_type= decline_type,   
         failure_reason= failure_reason,
         amount_inr=amount,
         recovered_amount= 0.0,
@@ -122,7 +131,6 @@ def handle_payment_event(payload: dict) -> dict:
         if contact:
             contact_number = contact.replace("+91", "").replace(" ", "") # normalise
             with Session(engine) as session:
-                # Find any pending case for this customer's contact
                 cases = session.exec(select(RecoveryState).where(RecoveryState.recovery_status.not_in(["recovered", "closed", "escalated"]))).all()
                 for case in cases:
                     db_contact = case.customer.get("contact", "").replace("+91", "").replace(" ", "")
@@ -174,7 +182,6 @@ def handle_inbound_email(payload: dict) -> dict:
 def handle_inbound_whatsapp(from_number: str, body: str) -> dict:
     print(f"\n[INBOUND WHATSAPP] Received message from {from_number}: {body}")
     
-    # Twilio sends "whatsapp:+919393519918", database stores "9393519918"
     contact_number = from_number.replace("whatsapp:", "")
     if contact_number.startswith("+91"):
         contact_number = contact_number[3:]
@@ -206,3 +213,12 @@ def handle_inbound_whatsapp(from_number: str, body: str) -> dict:
     )
     
     return {"status": "Agent woken up successfully"}
+
+
+
+def detect_downtime(downtime):
+    
+    # with Session(engine) as session:
+    pass 
+    
+    

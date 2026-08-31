@@ -1,8 +1,4 @@
 
-# load_dotenv("/home/dinesh/Desktop/projects/renvue/backend/.env")
-
-# RAZORPAY_KEY_ID = os.environ["RAZORPAY_KEY_ID"]
-# RAZORPAY_KEY_SECRET = os.environ["RAZORPAY_KEY_SECRET"]
 
 
 from pydantic_settings import BaseSettings
@@ -22,5 +18,7 @@ class Settings(BaseSettings):
     resend_api_key:str=""
     twilo_whatsapp_number:str=""
     model:str = ""
+    min_discount:int=0
+    max_discount:int=0
 
 settings = Settings()

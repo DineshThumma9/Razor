@@ -15,6 +15,16 @@ from core.models import AuditEntry
 
 from core.clients import razorpay_client as client
 
+from worker import invoke_agent_task
+from worker import app 
+
+from pydantic import BaseModel,Field
+from core.clients import twilo_client, elevenlabs_client as elevenlabs
+
+
+import requests
+
+
 email_messages = {
     'gentle': "Hi {name},<br><br>We noticed your recent payment of ₹{amount} failed. Please ensure your account has sufficient funds. We'll retry soon.<br><br>Thanks,<br>The Team",
     'urgent': "Hi {name},<br><br>Your payment of ₹{amount} has failed again. To avoid service interruption, please update your payment method immediately.<br><br>Thanks,<br>The Team",
@@ -22,17 +32,13 @@ email_messages = {
 }
 
 
-from pydantic import BaseModel, Field
 
 class EmailReminderArgs(BaseModel):
     urgency: str = Field(description="MUST be one of: 'gentle', 'urgent', 'final'")
 
 
-from worker import invoke_agent_task
-from worker import app 
-
-from pydantic import BaseModel,Field
 class PromiseToPayArgs(BaseModel):
+    sentiment:str=Field(description="Sentiment of the reply user sent Gentle? Angry?")
     reason: str = Field(description="The reason the user gave for the delay.")
     date_str: str = Field(description="The ISO format date (YYYY-MM-DD) the user promised to pay by.")
 
@@ -45,6 +51,24 @@ class PaymentLinkArgs(BaseModel):
 
 class EscalateArgs(BaseModel):
     reason: str = Field(description="Detailed reason for why this case is being escalated.")
+
+class SalaryDateArgs(BaseModel):
+    pass
+
+
+
+def _log_audit(state, tool_name: str, next_retry_at: datetime = None):
+    entry = AuditEntry(
+        event_triggered=tool_name,
+        amount=str(state.amount_inr),
+        recovery_status=state.recovery_status,
+        customer=state.customer,
+        next_contact=next_retry_at
+    )
+    state.audit_log.append(entry.model_dump(mode="json"))
+    if next_retry_at:
+        state.next_retry_at = next_retry_at
+    save_state(state)
 
 
 
@@ -68,10 +92,7 @@ def send_email_reminder(urgency: str,config: RunnableConfig) -> str:
     html_content = email_messages.get(urgency, email_messages['gentle']).format(
         name=customer_name, amount=amount_inr
     )
-    
-    
-
-    
+        
     try:
         resend.api_key = settings.resend_api_key
         print(f"api key:{settings.resend_api_key}")
@@ -82,12 +103,13 @@ def send_email_reminder(urgency: str,config: RunnableConfig) -> str:
             "html": html_content,
         })
         print(f"    → Email sent successfully: {response}")
-        # Trigger follow-up check after 3 days
         invoke_agent_task.apply_async(args=[case_id], countdown=3*86400)
 
     except Exception as e:
         print(f"    → (Simulated email due to missing Resend API key: {e})")
     
+    next_contact = datetime.now() + timedelta(days=3)
+    _log_audit(state, "send_email_reminder", next_contact)
 
     return f"Email ({urgency}) queued for {customer_email}"
 
@@ -134,8 +156,10 @@ def create_payment_link(config: RunnableConfig) -> str:
 
     print(f"    → Link     : {short_url}")
 
-    # Trigger follow-up check after 1 day (payment links expire faster)
+    next_contact = datetime.now() + timedelta(days=1)
     invoke_agent_task.apply_async(args=[case_id], countdown=1*86400)
+    
+    _log_audit(state, "create_payment_link", next_contact)
 
     return short_url
 
@@ -154,11 +178,12 @@ def escalate_to_human(reason: str, config: RunnableConfig) -> str:
     print(f"\n  [TOOL] escalate_to_human")
     print(f"    → Customer : {customer_name}")
     print(f"    → Reason   : {reason}")
+    
+    state.recovery_status = "escalated"
+    _log_audit(state, "escalate_to_human", None)
+    
     return f"Case for {customer_name} escalated to human. Reason: {reason}"
 
-
-class SalaryDateArgs(BaseModel):
-    pass
 
 @tool(args_schema=SalaryDateArgs)
 def get_next_salary_date() -> str:
@@ -192,6 +217,7 @@ def get_next_salary_date() -> str:
     result = ", ".join(str(d) for d in milestones)
     print(f"\n  [TOOL] get_next_salary_date")
     print(f"    → Upcoming milestones: {result}")
+    
     return result
 
 
@@ -205,35 +231,38 @@ def complete_case(summary: str) -> str:
     print(f"    → Summary : {summary}")
     return "Case workflow completed."
 
-from core.clients import twilo_client, elevenlabs_client as elevenlabs
 
 @tool 
-def send_whatsapp_msg(msg:str,contact_number:str,config: RunnableConfig):
+def send_whatsapp_msg(msg:str, config: RunnableConfig):
     """
     Sends a WhatsApp message to the customer using Twilio.
     msg is the content of the message.
     """
+    case_id = config.get("configurable", {}).get("thread_id")
+    state = load_state(case_id)
+    contact_number = state.customer.get("contact", "")
+    
+    if not contact_number:
+        return "Failed: Customer has no contact number."
 
-    # Ensure the number has the country code
     if not contact_number.startswith("+"):
         contact_number = "+91" + contact_number
 
-    # Send the WhatsApp message
     message = twilo_client.messages.create(
-        from_=f"whatsapp:{settings.twilo_whatsapp_number}",  # Your Twilio Sandbox number
+        from_=f"whatsapp:{settings.twilo_whatsapp_number}", 
         body=msg,
-        to=f"whatsapp:{contact_number}"       # The recipient's WhatsApp number (with country code)
+        to=f"whatsapp:{contact_number}"      
         )
 
-    case_id = config.get("configurable", {}).get("thread_id")
+
+    next_contact = datetime.now() + timedelta(days=3)
     invoke_agent_task.apply_async(args=[case_id], countdown=3*86400)
 
+    _log_audit(state, "send_whatsapp_msg", next_contact)
 
     print(f"Message dispatched successfully! SID: {message.sid}")
 
 
-
-import requests
 
 @tool
 def get_voice_call(msg:str, config: RunnableConfig):
@@ -251,7 +280,6 @@ def get_voice_call(msg:str, config: RunnableConfig):
     
     audio_bytes = b"".join(audio_stream)
 
-    # Upload to catbox to get a public URL for Twilio
     print(f"  [TOOL] get_voice_call -> Uploading to catbox.moe for Twilio...")
     response = requests.post(
         "https://catbox.moe/user/api.php", 
@@ -265,10 +293,12 @@ def get_voice_call(msg:str, config: RunnableConfig):
     state = load_state(case_id)
     contact_number = state.customer.get("contact", "")
     
+    if not contact_number:
+        return "Failed: Customer has no contact number."
+
     if not contact_number.startswith("+"):
         contact_number = "+91" + contact_number
 
-    # Send the WhatsApp message with the audio
     print(f"  [TOOL] get_voice_call -> Dispatching Twilio WhatsApp Message...")
     message = twilo_client.messages.create(
         from_=f"whatsapp:{settings.twilo_whatsapp_number}",
@@ -277,12 +307,12 @@ def get_voice_call(msg:str, config: RunnableConfig):
         to=f"whatsapp:{contact_number}"
     )
 
+    next_contact = datetime.now() + timedelta(days=2)
     invoke_agent_task.apply_async(args=[case_id], countdown=2*86400)
+    
+    _log_audit(state, "get_voice_call", next_contact)
 
     return f"Voice note dispatched successfully to {contact_number}! SID: {message.sid}"
-    invoke_agent_task.apply_async(args=[case_id], countdown=2*86400)
-
-    return audio
 
 @tool(args_schema=PromiseToPayArgs)
 def log_promise_to_pay(date_str: str, reason: str, config: RunnableConfig):
@@ -294,18 +324,13 @@ def log_promise_to_pay(date_str: str, reason: str, config: RunnableConfig):
     case_id = config.get("configurable", {}).get("thread_id")
     state = load_state(case_id)
     
-    # Parse the date and save it to the state
     target_date = datetime.fromisoformat(date_str)
-    state.next_retry_at = target_date
-    save_state(state)
+    _log_audit(state, "log_promise_to_pay", target_date)
 
-    # Calculate seconds until the promised date for the Celery countdown
     now = datetime.now()
     delta_seconds = (target_date - now).total_seconds()
     if delta_seconds < 0:
-        delta_seconds = 60 # if date is in the past, just wake up in 1 minute
-
-    # Use the correct Celery task
+        delta_seconds = 60 
     invoke_agent_task.apply_async(args=[case_id], countdown=int(delta_seconds))
 
     return f"Successfully logged promise to pay on {date_str}. Let the user know it is confirmed."

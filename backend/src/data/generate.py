@@ -309,6 +309,11 @@ def generate_failed_subscriptions(n: int = 3) -> list[dict]:
             "total_count": 12,
             "customer_notify": 1,
             "start_at": start_at,
+            "customer_details": {
+                "name": customer["name"],
+                "email": customer["email"],
+                "contact": customer["contact"],
+            },
             "notes": {
                 "customer_name": customer["name"],
                 "customer_email": customer["email"],
@@ -398,6 +403,11 @@ def generate_overdue_invoices(n: int = 4) -> list[dict]:
             "amount": amount,
             "currency": "INR",
             "date": int(time.time()),
+            "customer_details": {
+                "customer_name": customer["name"],
+                "customer_email": customer["email"],
+                "customer_contact": customer["contact"],
+            },
             "line_items": [
                 {
                     "name": "Software License",

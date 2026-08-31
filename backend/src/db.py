@@ -8,7 +8,6 @@ from core.models import RecoveryState
 DB_PATH = Path(__file__).parent.parent / "recovery.db"
 sqlite_url = f"sqlite:///{DB_PATH}"
 
-# Create the SQLAlchemy engine
 engine = create_engine(sqlite_url)
 
 def init_db():
