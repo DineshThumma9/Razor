@@ -11,8 +11,9 @@ from config.db import AsyncSessionLocal
 from sqlmodel import select
 from agent.graph import build_agent
 
-# Taskiq broker configured with Redis
-broker = ListQueueBroker("redis://localhost:6379/0")
+from config.config import settings
+redis_url = settings.redis_url if settings.redis_url else "redis://localhost:6379/0"
+broker = ListQueueBroker(redis_url)
 
 @broker.task(task_name='worker.invoke_agent_task')
 async def invoke_agent_task(case_id: str):

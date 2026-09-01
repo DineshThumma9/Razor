@@ -5,7 +5,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import requests
 
-WEBHOOK_URL = "http://localhost:8000/listen-events"
+import os
+WEBHOOK_URL = os.getenv("BACKEND_URL", "https://razor-renvue.up.railway.app").rstrip("/") + "/listen-events"
 
 def log(msg: str):
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
@@ -18,11 +19,11 @@ def trigger_webhook(payload: dict):
         log(f"  [Warning] Failed to trigger webhook: {e}")
 
 CUSTOMERS = [
-    {"name": "Dinesh Thumma", "email": "dineshthumma15@gmail.com", "contact": "9393519918"},
-    {"name": "Duct Dynamic", "email": "ductdynamic73@gmail.com", "contact": "9393519918"},
-    {"name": "Duct Dynamic 07", "email": "ductdynamic07@gmail.com", "contact": "9393519918"},
-    {"name": "Duct Dynamic 99", "email": "ductdynamic99@gmail.com", "contact": "9393519918"},
-    {"name": "Student", "email": "23B81A7217@cvr.ac.in", "contact": "9393519918"},
+    {"name": "Dinesh Thumma", "email": "dineshthumma15@gmail.com", "contact": "+919393519918"},
+    {"name": "Duct Dynamic", "email": "ductdynamic73@gmail.com", "contact": "+919393519918"},
+    {"name": "Duct Dynamic 07", "email": "ductdynamic07@gmail.com", "contact": "+919393519918"},
+    {"name": "Duct Dynamic 99", "email": "ductdynamic99@gmail.com", "contact": "+919393519918"},
+    {"name": "Student", "email": "23B81A7217@cvr.ac.in", "contact": "+919393519918"},
 ]
 
 AMOUNTS_INR = [49900, 99900, 199900, 499900, 999900]  # paise

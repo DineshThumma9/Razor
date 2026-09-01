@@ -113,9 +113,18 @@ async def send_twilio_whatsapp(
         kwargs["media_url"] = [media_url]
 
     client = get_twilio_client()
-    message = await client.messages._create_async(**kwargs)
-
-    return message.sid
+    try:
+        res = await client.messages.create_async(**kwargs)
+        if isinstance(res, tuple):
+            message = res[0]
+        else:
+            message = res
+        sid = getattr(message, "sid", str(message))
+        print(f"    → Twilio WhatsApp message dispatched! SID: {sid}")
+        return sid
+    except Exception as e:
+        print(f"    → Twilio WhatsApp Error: {e}")
+        return f"ERROR: {e}"
 
 
 async def cleanup_clients():
