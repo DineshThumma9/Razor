@@ -1,0 +1,13 @@
+.git
+.venv
+node_modules
+frontend
+backend/data
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+*.log
+.DS_Store
+__pycache__
+*.pyc

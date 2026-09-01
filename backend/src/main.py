@@ -9,6 +9,7 @@ from router.apis import api_router
 from router.listeners import router
 from config.config import settings
 
+
 import uvicorn 
 
 
@@ -47,7 +48,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
-        "*" # Allow Vercel deployments
+        settings.frontend_url 
     ],
     allow_credentials=True,
     allow_methods=["*"],
