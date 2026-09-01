@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { CaseSchema, StatsSchema, type Case, type Stats } from './types'
 
 const http = axios.create({
-  baseURL: import.meta.env.API_URL || 'http://localhost:8000/api',
+  baseURL: import.meta.env.API_URL || import.meta.env.VITE_API_URL,
   timeout: 15000,
 })
 

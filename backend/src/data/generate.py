@@ -56,7 +56,8 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 
 import requests
 
-WEBHOOK_URL = "http://localhost:8000/listen-events"
+import os
+WEBHOOK_URL = os.getenv("BACKEND_URL", "https://razor-renvue.up.railway.app").rstrip("/") + "/listen-events"
 
 def trigger_webhook(payload: dict):
     try:
