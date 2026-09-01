@@ -12,8 +12,14 @@ from sqlmodel import select
 from agent.graph import build_agent
 
 from config.config import settings
-redis_url = settings.redis_url if settings.redis_url else "redis://localhost:6379/0"
-broker = ListQueueBroker(redis_url)
+redis_url = settings.redis_url
+broker = ListQueueBroker(
+    redis_url,
+    health_check_interval=15,
+    retry_on_timeout=True,
+    socket_timeout=10,
+    socket_connect_timeout=10,
+)
 
 @broker.task(task_name='worker.invoke_agent_task')
 async def invoke_agent_task(case_id: str):

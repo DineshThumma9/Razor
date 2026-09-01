@@ -113,7 +113,10 @@ async def create_payment_link(config: RunnableConfig) -> str:
             next_contact = state.next_retry_at
         else:
             next_contact = datetime.now() + timedelta(days=1)
-            await _schedule_task(state, next_contact, db)
+            try:
+                await _schedule_task(state, next_contact, db)
+            except Exception as e:
+                print(f"    [WARN] Failed to schedule follow-up task (non-fatal): {e}")
 
         await _log_audit(state, "create_payment_link", next_contact, db)
 
@@ -181,7 +184,10 @@ async def get_next_salary_date(config: RunnableConfig) -> str:
 
     async with app_db.AsyncSessionLocal() as db:
         state = await load_state(case_id, db)
-        await _schedule_task(state, target_time, db)
+        try:
+            await _schedule_task(state, target_time, db)
+        except Exception as e:
+            print(f"    [WARN] Failed to schedule follow-up task (non-fatal): {e}")
         await _log_audit(state, "get_next_salary_date", target_time, db)
 
     print(f"\n  [TOOL] get_next_salary_date")
@@ -222,7 +228,10 @@ async def send_whatsapp_msg(msg: str, config: RunnableConfig):
             next_contact = state.next_retry_at
         else:
             next_contact = datetime.now() + timedelta(days=3)
-            await _schedule_task(state, next_contact, db)
+            try:
+                await _schedule_task(state, next_contact, db)
+            except Exception as e:
+                print(f"    [WARN] Failed to schedule follow-up task (non-fatal): {e}")
 
         await _log_audit(state, "send_whatsapp_msg", next_contact, db)
 
@@ -249,7 +258,10 @@ async def get_voice_call(msg: str, config: RunnableConfig):
             next_contact = state.next_retry_at
         else:
             next_contact = datetime.now() + timedelta(days=2)
-            await _schedule_task(state, next_contact, db)
+            try:
+                await _schedule_task(state, next_contact, db)
+            except Exception as e:
+                print(f"    [WARN] Failed to schedule follow-up task (non-fatal): {e}")
 
         await _log_audit(state, "get_voice_call", next_contact, db)
 
