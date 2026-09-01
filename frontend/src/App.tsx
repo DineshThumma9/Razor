@@ -9,6 +9,10 @@ import { EscalationPanel } from './components/EscalationPanel'
 import { CaseTable } from './components/CaseTable'
 import { CaseDrawer } from './components/CaseDrawer'
 
+import SimulateSheet from './components/SimulateSheet'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Sheet, SheetContent } from '@/components/ui/sheet'
+
 export default function App() {
   const [cases, setCases] = useState<Case[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
@@ -42,12 +46,14 @@ export default function App() {
   }
 
   const escalatedCases = cases.filter((c) => c.recovery_status === 'escalated')
+  const recoveredCases = cases.filter((c) => c.recovery_status === 'recovered' || c.recovery_status === 'closed')
+  const processingCases = cases.filter((c) => !['escalated', 'recovered', 'closed'].includes(c.recovery_status))
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-[#09090d] text-zinc-100 font-sans">
+      <div className="h-screen bg-[#09090d] text-zinc-100 font-sans flex flex-col overflow-hidden">
         {/* Nav */}
-        <header className="bg-[#09090d]/80 backdrop-blur sticky top-0 z-40">
+        <header className="bg-[#09090d]/80 backdrop-blur sticky top-0 z-40 shrink-0 border-b border-zinc-800/60">
           <div className="max-w-screen-xl mx-auto px-6 h-14 flex items-center justify-between gap-6">
             <div className="flex items-center gap-2">
               <svg className="w-5 h-5 text-violet-500" viewBox="0 0 24 24" fill="currentColor">
@@ -60,52 +66,79 @@ export default function App() {
           </div>
         </header>
 
-        {/* Main */}
-        <main className="max-w-screen-xl h-full mx-auto px-6 py-8">
-          {/* New prominent Stats Bar */}
-
-          {/* Escalation panel */}
-          <EscalationPanel
-            cases={escalatedCases}
-            onSelect={openDrawer}
-            onApprove={refresh}
-          />
-
-          
-          {/* Queue header */}
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-base font-semibold text-zinc-200">Recovery Queue</h1>
-              <p className="text-xs text-zinc-500 mt-0.5">
-                {loadingCases ? 'Loading…' : `${cases.length} cases · auto-refreshes every 10s`}
-              </p>
+        {/* Main Content */}
+        <ScrollArea className="flex-1">
+          <main className="max-w-screen-xl mx-auto px-6 py-8">
+            <div className="flex w-full justify-end mb-6">
+              <SimulateSheet />
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-zinc-700 bg-transparent text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 h-8 text-xs"
-              onClick={refresh}
-            >
-              Refresh
-            </Button>
-          </div>
+            
+            <StatsBar stats={stats} loading={loadingStats} />
 
-          <StatsBar stats={stats} loading={loadingStats} />
+            {/* Escalation panel */}
+            <EscalationPanel
+              cases={escalatedCases}
+              onSelect={openDrawer}
+              onApprove={refresh}
+            />
 
-          <CaseTable
-            cases={cases}
-            loading={loadingCases}
-            onRowClick={openDrawer}
-          />
-        </main>
+            {/* Processing Queue */}
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-base font-semibold text-zinc-200">Active Processing Queue</h2>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    {loadingCases ? 'Loading…' : `${processingCases.length} active cases · auto-refreshes every 10s`}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-zinc-700 bg-transparent text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 h-8 text-xs"
+                  onClick={refresh}
+                >
+                  Refresh
+                </Button>
+              </div>
+              <CaseTable
+                cases={processingCases}
+                loading={loadingCases}
+                onRowClick={openDrawer}
+              />
+            </div>
 
-        {/* Case detail drawer */}
-        <CaseDrawer
-          caseId={selectedCaseId}
-          open={drawerOpen}
-          onClose={() => setDrawerOpen(false)}
-          onAction={refresh}
-        />
+            {/* Success Section */}
+            {recoveredCases.length > 0 && (
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 className="text-base font-semibold text-emerald-400">Successfully Recovered</h2>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      {recoveredCases.length} resolved cases
+                    </p>
+                  </div>
+                </div>
+                <CaseTable
+                  cases={recoveredCases}
+                  loading={loadingCases}
+                  onRowClick={openDrawer}
+                />
+              </div>
+            )}
+          </main>
+        </ScrollArea>
+
+        {/* Case Details Slide-Over Sheet */}
+        <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+          <SheetContent side="right" showCloseButton={false} className="bg-[#0f0f14] border-l border-zinc-800/80 text-zinc-100 flex flex-col p-0 w-full sm:max-w-xl shadow-2xl">
+            <CaseDrawer
+              caseId={selectedCaseId}
+              open={drawerOpen}
+              onClose={() => setDrawerOpen(false)}
+              onAction={refresh}
+            />
+          </SheetContent>
+        </Sheet>
       </div>
     </TooltipProvider>
   )

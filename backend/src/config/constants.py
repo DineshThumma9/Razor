@@ -57,3 +57,27 @@ soft_declines  =  {
 
 
 
+
+email_messages = {
+    'gentle': "Hi {name},<br><br>We noticed your recent payment of ₹{amount} failed. Please ensure your account has sufficient funds. We'll retry soon.<br><br>Thanks,<br>The Team",
+    'urgent': "Hi {name},<br><br>Your payment of ₹{amount} has failed again. To avoid service interruption, please update your payment method immediately.<br><br>Thanks,<br>The Team",
+    'final': "Dear {name},<br><br>This is our final notice regarding your outstanding payment of ₹{amount}. Your service will be paused if this is not resolved.<br><br>Thanks,<br>The Team"
+}
+
+
+
+STATUS_ORDER = {"escalated": 0, "in_progress": 1, "pending": 2, "recovered": 3, "closed": 4}
+
+
+HANDLED_EVENTS = [
+    "payment.failed", 
+    "payment.captured",
+    "payment.dispute.created",
+    "payment_link.expired",
+    "subscription.halted",
+    "subscription.cancelled",
+    "invoice.expired",
+    "order.created"
+
+
+]

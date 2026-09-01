@@ -1,20 +1,20 @@
-from fastapi import APIRouter, HTTPException
-from sqlmodel import Session, select
+from fastapi import APIRouter, HTTPException, Depends
+from sqlmodel import select
+from langchain_core.messages import HumanMessage
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from db import engine, load_state, save_state
-from core.models import RecoveryState
+from config.db import get_db
+from models.models import RecoveryState
+from agent.graph import build_agent
+from config.constants import STATUS_ORDER
+from service.states import load_state, save_state
+
 
 api_router = APIRouter(prefix="/api")
 
-STATUS_ORDER = {"escalated": 0, "in_progress": 1, "pending": 2, "recovered": 3, "closed": 4}
-
-
-
-
 @api_router.get("/metrics")
-def get_metrics():
-    with Session(engine) as session:
-        cases = session.exec(select(RecoveryState)).all()
+async def get_metrics(db: AsyncSession = Depends(get_db)):
+    cases = (await db.execute(select(RecoveryState))).scalars().all()
     total_at_risk = sum(c.amount_inr for c in cases)
     recovered = [c for c in cases if c.recovery_status == "recovered"]
     escalated = [c for c in cases if c.recovery_status == "escalated"]
@@ -30,10 +30,10 @@ def get_metrics():
 
     
 @api_router.get("/cases")
-def list_cases():
-    with Session(engine) as session:
-        cases = session.exec(select(RecoveryState)).all()
+async def list_cases(db: AsyncSession = Depends(get_db)):
+    cases = (await db.execute(select(RecoveryState))).scalars().all()
     sorted_cases = sorted(cases, key=lambda c: STATUS_ORDER.get(c.recovery_status, 99))
+    
     return [
         {
             "case_id": c.case_id,
@@ -55,8 +55,8 @@ def list_cases():
 
 
 @api_router.get("/cases/{case_id}")
-def get_case(case_id: str):
-    state = load_state(case_id)
+async def get_case(case_id: str, db: AsyncSession = Depends(get_db)):
+    state = await load_state(case_id, db)
     if not state:
         raise HTTPException(status_code=404, detail="Case not found")
     return {
@@ -80,9 +80,8 @@ def get_case(case_id: str):
 
 
 @api_router.get("/stats")
-def get_stats():
-    with Session(engine) as session:
-        cases = session.exec(select(RecoveryState)).all()
+async def get_stats(db: AsyncSession = Depends(get_db)):
+    cases = (await db.execute(select(RecoveryState))).scalars().all()
     total_cases = len(cases)
     total_at_risk = sum(c.amount_inr for c in cases if c.recovery_status not in ["recovered", "closed"])
     total_recovered = sum(c.recovered_amount for c in cases)
@@ -109,19 +108,17 @@ def get_stats():
 
 
 @api_router.post("/cases/{case_id}/approve")
-def approve_escalation(case_id: str):
-    from agent.graph import build_agent
-    from langchain_core.messages import HumanMessage
-    state = load_state(case_id)
+async def approve_escalation(case_id: str, db: AsyncSession = Depends(get_db)):
+    state = await load_state(case_id, db)
     if not state:
         raise HTTPException(status_code=404, detail="Case not found")
     if state.recovery_status != "escalated":
         raise HTTPException(status_code=400, detail=f"Case is not escalated (current: {state.recovery_status})")
     state.recovery_status = "in_progress"
-    save_state(state)
+    await save_state(state, db)
     agent = build_agent(state)
     config = {"configurable": {"thread_id": case_id}}
-    agent.invoke(
+    await agent.ainvoke(
         {"messages": [HumanMessage(content="Human approved. Proceed with next recovery action.")],
          "recovery_state": state,
          "event_source": "inbound.human_approval"},
@@ -131,10 +128,10 @@ def approve_escalation(case_id: str):
 
 
 @api_router.post("/cases/{case_id}/close")
-def close_case(case_id: str):
-    state = load_state(case_id)
+async def close_case(case_id: str, db: AsyncSession = Depends(get_db)):
+    state = await load_state(case_id, db)
     if not state:
         raise HTTPException(status_code=404, detail="Case not found")
     state.recovery_status = "closed"
-    save_state(state)
+    await save_state(state, db)
     return {"status": "closed", "case_id": case_id}

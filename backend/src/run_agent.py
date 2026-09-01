@@ -22,7 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from agent.graph import build_agent
-from core.models import RecoveryState
+from models.models import RecoveryState
 
 # ---------------------------------------------------------------------------
 # THROTTLE CONFIG — change here to tune or disable
@@ -62,7 +62,7 @@ def case_to_state(raw: dict) -> RecoveryState:
     )
 
 
-from db import save_state, load_state
+from config.db import save_state, load_state
 
 def run_case(raw: dict, index: int):
     # For testing, we use a deterministic UUID so it's consistent across runs

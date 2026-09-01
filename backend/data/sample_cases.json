@@ -1,39 +1,71 @@
 [
   {
     "type": "failed_payment",
-    "order_id": "order_mock_1788102288_0",
-    "amount_paise": 49900,
-    "amount_inr": 499.0,
+    "order_id": "order_mock_1788251082_0",
+    "amount_paise": 99900,
+    "amount_inr": 999.0,
     "currency": "INR",
     "customer": {
-      "name": "Student",
-      "email": "23B81A7217@cvr.ac.in",
-      "contact": "9393519918"
-    },
-    "failure_reason": "Card declined by issuer",
-    "created_at": "2026-08-30T15:04:48.681903+00:00",
-    "status": "payment_failed",
-    "recovery_status": "pending"
-  },
-  {
-    "type": "failed_payment",
-    "order_id": "order_mock_1788102290_1",
-    "amount_paise": 49900,
-    "amount_inr": 499.0,
-    "currency": "INR",
-    "customer": {
-      "name": "Student",
-      "email": "23B81A7217@cvr.ac.in",
+      "name": "Duct Dynamic",
+      "email": "ductdynamic73@gmail.com",
       "contact": "9393519918"
     },
     "failure_reason": "3DS authentication failed",
-    "created_at": "2026-08-30T15:04:50.685668+00:00",
+    "created_at": "2026-09-01T08:24:42.544590+00:00",
     "status": "payment_failed",
     "recovery_status": "pending"
   },
   {
     "type": "failed_payment",
-    "order_id": "order_mock_1788102292_2",
+    "order_id": "order_mock_1788251084_1",
+    "amount_paise": 49900,
+    "amount_inr": 499.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Duct Dynamic",
+      "email": "ductdynamic73@gmail.com",
+      "contact": "9393519918"
+    },
+    "failure_reason": "Invalid CVV",
+    "created_at": "2026-09-01T08:24:44.549183+00:00",
+    "status": "payment_failed",
+    "recovery_status": "pending"
+  },
+  {
+    "type": "failed_payment",
+    "order_id": "order_mock_1788251086_2",
+    "amount_paise": 499900,
+    "amount_inr": 4999.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Duct Dynamic",
+      "email": "ductdynamic73@gmail.com",
+      "contact": "9393519918"
+    },
+    "failure_reason": "Invalid CVV",
+    "created_at": "2026-09-01T08:24:46.553091+00:00",
+    "status": "payment_failed",
+    "recovery_status": "pending"
+  },
+  {
+    "type": "failed_payment",
+    "order_id": "order_mock_1788251088_3",
+    "amount_paise": 499900,
+    "amount_inr": 4999.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Duct Dynamic",
+      "email": "ductdynamic73@gmail.com",
+      "contact": "9393519918"
+    },
+    "failure_reason": "Insufficient funds",
+    "created_at": "2026-09-01T08:24:48.555384+00:00",
+    "status": "payment_failed",
+    "recovery_status": "pending"
+  },
+  {
+    "type": "failed_payment",
+    "order_id": "order_mock_1788251090_4",
     "amount_paise": 999900,
     "amount_inr": 9999.0,
     "currency": "INR",
@@ -42,30 +74,46 @@
       "email": "dineshthumma0@gmail.com",
       "contact": "9393519918"
     },
-    "failure_reason": "Card declined by issuer",
-    "created_at": "2026-08-30T15:04:52.688919+00:00",
+    "failure_reason": "3DS authentication failed",
+    "created_at": "2026-09-01T08:24:50.558595+00:00",
     "status": "payment_failed",
     "recovery_status": "pending"
   },
   {
-    "type": "failed_payment",
-    "order_id": "order_mock_1788102294_3",
-    "amount_paise": 999900,
-    "amount_inr": 9999.0,
+    "type": "abandoned_checkout",
+    "payment_link_id": "plink_mock_1788251094_0",
+    "amount_paise": 49900,
+    "amount_inr": 499.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Duct Dynamic 99",
+      "email": "ductdynamic99@gmail.com",
+      "contact": "9393519918"
+    },
+    "drop_step": "payment_method_selection",
+    "created_at": "2026-09-01T08:24:54.062334+00:00",
+    "status": "expired",
+    "recovery_status": "pending"
+  },
+  {
+    "type": "abandoned_checkout",
+    "payment_link_id": "plink_mock_1788251095_1",
+    "amount_paise": 99900,
+    "amount_inr": 999.0,
     "currency": "INR",
     "customer": {
       "name": "Duct Dynamic",
       "email": "ductdynamic73@gmail.com",
       "contact": "9393519918"
     },
-    "failure_reason": "Insufficient funds",
-    "created_at": "2026-08-30T15:04:54.692474+00:00",
-    "status": "payment_failed",
+    "drop_step": "otp_verification",
+    "created_at": "2026-09-01T08:24:55.565539+00:00",
+    "status": "expired",
     "recovery_status": "pending"
   },
   {
-    "type": "failed_payment",
-    "order_id": "order_mock_1788102296_4",
+    "type": "abandoned_checkout",
+    "payment_link_id": "plink_mock_1788251097_2",
     "amount_paise": 199900,
     "amount_inr": 1999.0,
     "currency": "INR",
@@ -74,9 +122,164 @@
       "email": "ductdynamic73@gmail.com",
       "contact": "9393519918"
     },
-    "failure_reason": "Card expired",
-    "created_at": "2026-08-30T15:04:56.695482+00:00",
-    "status": "payment_failed",
+    "drop_step": "address_confirmation",
+    "created_at": "2026-09-01T08:24:57.068910+00:00",
+    "status": "expired",
+    "recovery_status": "pending"
+  },
+  {
+    "type": "abandoned_checkout",
+    "payment_link_id": "plink_mock_1788251098_3",
+    "amount_paise": 99900,
+    "amount_inr": 999.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Dinesh Thumma 0",
+      "email": "dineshthumma0@gmail.com",
+      "contact": "9393519918"
+    },
+    "drop_step": "address_confirmation",
+    "created_at": "2026-09-01T08:24:58.572540+00:00",
+    "status": "expired",
+    "recovery_status": "pending"
+  },
+  {
+    "type": "abandoned_checkout",
+    "payment_link_id": "plink_mock_1788251100_4",
+    "amount_paise": 999900,
+    "amount_inr": 9999.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Duct Dynamic",
+      "email": "ductdynamic73@gmail.com",
+      "contact": "9393519918"
+    },
+    "drop_step": "payment_method_selection",
+    "created_at": "2026-09-01T08:25:00.076102+00:00",
+    "status": "expired",
+    "recovery_status": "pending"
+  },
+  {
+    "type": "failed_subscription",
+    "subscription_id": "sub_mock_1788251105_0",
+    "plan_id": "plan_mock_1788251102",
+    "amount_paise": 99900,
+    "amount_inr": 999.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Duct Dynamic",
+      "email": "ductdynamic73@gmail.com",
+      "contact": "9393519918"
+    },
+    "halt_reason": "Insufficient funds",
+    "created_at": "2026-09-01T08:25:05.079683+00:00",
+    "status": "halted",
+    "recovery_status": "pending"
+  },
+  {
+    "type": "failed_subscription",
+    "subscription_id": "sub_mock_1788251108_1",
+    "plan_id": "plan_mock_1788251102",
+    "amount_paise": 99900,
+    "amount_inr": 999.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Duct Dynamic 99",
+      "email": "ductdynamic99@gmail.com",
+      "contact": "9393519918"
+    },
+    "halt_reason": "Declined by bank",
+    "created_at": "2026-09-01T08:25:08.082732+00:00",
+    "status": "halted",
+    "recovery_status": "pending"
+  },
+  {
+    "type": "failed_subscription",
+    "subscription_id": "sub_mock_1788251111_2",
+    "plan_id": "plan_mock_1788251102",
+    "amount_paise": 99900,
+    "amount_inr": 999.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Dinesh Thumma",
+      "email": "dineshthumma15@gmail.com",
+      "contact": "9393519918"
+    },
+    "halt_reason": "User cancellation",
+    "created_at": "2026-09-01T08:25:11.085128+00:00",
+    "status": "halted",
+    "recovery_status": "pending"
+  },
+  {
+    "type": "overdue_invoice",
+    "invoice_id": "inv_mock_1788251114_0",
+    "invoice_number": "INV-1000",
+    "amount_paise": 99900,
+    "amount_inr": 999.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Duct Dynamic 07",
+      "email": "ductdynamic07@gmail.com",
+      "contact": "9393519918"
+    },
+    "days_overdue": 35,
+    "due_by": "2026-07-28T08:25:14+00:00",
+    "created_at": "2026-09-01T08:25:14.588346+00:00",
+    "status": "overdue",
+    "recovery_status": "pending"
+  },
+  {
+    "type": "overdue_invoice",
+    "invoice_id": "inv_mock_1788251116_1",
+    "invoice_number": "INV-1001",
+    "amount_paise": 49900,
+    "amount_inr": 499.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Dinesh Thumma",
+      "email": "dineshthumma15@gmail.com",
+      "contact": "9393519918"
+    },
+    "days_overdue": 54,
+    "due_by": "2026-07-09T08:25:16+00:00",
+    "created_at": "2026-09-01T08:25:16.091405+00:00",
+    "status": "overdue",
+    "recovery_status": "pending"
+  },
+  {
+    "type": "overdue_invoice",
+    "invoice_id": "inv_mock_1788251117_2",
+    "invoice_number": "INV-1002",
+    "amount_paise": 49900,
+    "amount_inr": 499.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Dinesh Thumma",
+      "email": "dineshthumma15@gmail.com",
+      "contact": "9393519918"
+    },
+    "days_overdue": 17,
+    "due_by": "2026-08-15T08:25:17+00:00",
+    "created_at": "2026-09-01T08:25:17.594328+00:00",
+    "status": "overdue",
+    "recovery_status": "pending"
+  },
+  {
+    "type": "overdue_invoice",
+    "invoice_id": "inv_mock_1788251119_3",
+    "invoice_number": "INV-1003",
+    "amount_paise": 199900,
+    "amount_inr": 1999.0,
+    "currency": "INR",
+    "customer": {
+      "name": "Dinesh Thumma 0",
+      "email": "dineshthumma0@gmail.com",
+      "contact": "9393519918"
+    },
+    "days_overdue": 47,
+    "due_by": "2026-07-16T08:25:19+00:00",
+    "created_at": "2026-09-01T08:25:19.097003+00:00",
+    "status": "overdue",
     "recovery_status": "pending"
   }
 ]

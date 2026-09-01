@@ -20,5 +20,14 @@ class Settings(BaseSettings):
     model:str = ""
     min_discount:int=0
     max_discount:int=0
+    redis_url:str = ""
+    postgres_url:str=""
+    database_url:str=""
+    db_pool_size:int=50
+    db_max_overflow:int=50
+    db_pool_timeout:int=30
+    db_pool_recycle:int=1800
+    db_checkpointer_pool_size:int=20
+    
 
 settings = Settings()

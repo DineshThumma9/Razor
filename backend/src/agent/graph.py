@@ -1,15 +1,7 @@
-import sqlite3
 from langgraph.graph import StateGraph, START, END
-from langgraph.checkpoint.sqlite import SqliteSaver
-from dotenv import load_dotenv
-
-from core.models import RecoveryState
+from config.db import get_checkpointer
+from models.models import RecoveryState
 from agent.nodes import AgentState, decide_event, decide_reply, execute, audit, should_continue, escalate_gate, after_execute
-
-load_dotenv()
-
-conn = sqlite3.connect("checkpoints.sqlite", check_same_thread=False)
-checkpointer = SqliteSaver(conn)
 
 def route_entry(state: AgentState):
     event = state.get("event_source", "")
@@ -75,7 +67,7 @@ def build_agent(state: RecoveryState):
 
     # Compile the graph
     app = workflow.compile(
-        checkpointer=checkpointer,
+        checkpointer=get_checkpointer(),
         interrupt_before=["escalate_gate"]
     )
     
