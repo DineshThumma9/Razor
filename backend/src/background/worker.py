@@ -44,7 +44,7 @@ async def revoke_active_task(task_id: str):
         # Note: Taskiq doesn't natively have a global 'revoke' by ID without a state backend / Redis backend,
         # but you can ignore execution at runtime if state changed, or use a custom Redis revocation flag.
         # For now, we will mark it revoked in Redis so the task can short-circuit.
-        r = redis.from_url("redis://localhost:6379/0")
+        r = redis.from_url(redis_url)
         await r.setex(f"revoked_task:{task_id}", 86400, "1")
 
 @broker.task(task_name='worker.abandoned_cart_timer')

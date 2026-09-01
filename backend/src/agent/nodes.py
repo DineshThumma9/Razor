@@ -13,7 +13,7 @@ from langgraph.graph.message import add_messages
 from pydantic import BaseModel, Field
 
 from config.config import settings
-from config.clients import redis_client
+from config.clients import get_redis_client
 from config.constants import hard_declines
 import config.db
 from models.models import RecoveryState
@@ -71,8 +71,9 @@ async def decide_event(state: AgentState):
     target_method = rs.method 
     through = rs.through
 
-    if target_method and await redis_client.sismember("downtimes:method", target_method):
-        if through and await redis_client.exists(f"downtimes:{target_method}:{through}"):
+    redis = get_redis_client()
+    if target_method and await redis.sismember("downtimes:method", target_method):
+        if through and await redis.exists(f"downtimes:{target_method}:{through}"):
             ai_msg = AIMessage(content="User network is down we cant do much respond with empathic wait message if tried many times ")
             return {"messages": [ai_msg]}
 
