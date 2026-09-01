@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     model:str = ""
     min_discount:int=0
     max_discount:int=0
-    redis_url:str = Field(default="redis://default:gQAAAAAAAp1TAAIgcDE4YmIwMzAyNTQwMWY0Zjk4OWQzNWNhNmMzOGNjNjU5Nw@hot-koala-171347.upstash.io:6379", alias="REDIS_URL")
+    redis_url:str = Field(default="rediss://default:gQAAAAAAAp1TAAIgcDE4YmIwMzAyNTQwMWY0Zjk4OWQzNWNhNmMzOGNjNjU5Nw@hot-koala-171347.upstash.io:6379", alias="REDIS_URL")
     postgres_url:str=""
     database_url:str=""
     db_pool_size:int=50

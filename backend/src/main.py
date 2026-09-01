@@ -27,14 +27,19 @@ logging.basicConfig(
 
 from config.db import _init_db, init_checkpointer, close_checkpointer, close_db
 from config.clients import cleanup_clients
+from background.worker import broker
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("[Renvue] Initializing Postgres Schema...")
     _init_db()
     await init_checkpointer()
+    if not broker.is_worker_process:
+        await broker.startup()
     yield
     print("[Renvue] Shutting down...")
+    if not broker.is_worker_process:
+        await broker.shutdown()
     await close_checkpointer()
     await close_db()
     await cleanup_clients()

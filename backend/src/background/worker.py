@@ -7,7 +7,7 @@ from service.states import load_state, save_state
 from langchain_core.messages import HumanMessage
 from config.clients import razorpay_client as client
 from models.models import RecoveryState
-from config.db import AsyncSessionLocal
+import config.db as app_db
 from sqlmodel import select
 from agent.graph import build_agent
 
@@ -19,7 +19,7 @@ broker = ListQueueBroker(redis_url)
 async def invoke_agent_task(case_id: str):
     print(f"[TASKIQ] Waking up agent for case {case_id}...")
     
-    async with AsyncSessionLocal() as db:
+    async with app_db.AsyncSessionLocal() as db:
         state = await load_state(case_id, db)
         if not state or state.recovery_status in ["recovered", "closed", "escalated"]:
             print(f"[TASKIQ] Case {case_id} is no longer active. Aborting.")
@@ -61,7 +61,7 @@ async def abandoned_cart_timer(order_id: str, customer_data: dict):
         print(f"[TASKIQ] Error fetching order {order_id}: {e}")
         return
         
-    async with AsyncSessionLocal() as db:
+    async with app_db.AsyncSessionLocal() as db:
         # Check if a RecoveryState already exists for this order
         existing = (await db.execute(select(RecoveryState).where(RecoveryState.source_id == order_id))).scalars().first()
         if existing:
@@ -95,7 +95,7 @@ async def abandoned_cart_timer(order_id: str, customer_data: dict):
         agent = build_agent(rs)
         config = {"configurable": {"thread_id": rs.case_id}}
         await agent.ainvoke(
-            {"messages": [], "recovery_state": rs, "event_source": "inbound.webhook"}, 
+            {"messages": [], "recovery_state": rs, "event_source": "automated.abandoned_cart"}, 
             config=config
         )
     return f"Success: Abandoned cart flow initiated for {order_id}."

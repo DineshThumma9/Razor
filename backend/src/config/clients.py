@@ -132,12 +132,13 @@ async def cleanup_clients():
         await twilo_http_client.session.close()
     if http_client:
         await http_client.aclose()
-    await redis_client.aclose()
+    if redis_client:
+        await redis_client.aclose()
 
 
 async def generate_and_send_voice_note(contact_number: str, msg: str) -> str:
     print(f"  [CLIENT] Generating ElevenLabs Voice...")
-    audio_generator = await elevenlabs_client.text_to_speech.convert(
+    audio_generator = elevenlabs_client.text_to_speech.convert(
         text=msg,
         voice_id="JBFqnCBsd6RMkjVDRZzb",
         model_id="eleven_v3",

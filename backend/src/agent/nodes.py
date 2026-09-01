@@ -97,6 +97,7 @@ async def decide_event(state: AgentState):
         tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": f"Your auto-pay was cancelled, but your ₹{rs.amount_inr:,.0f} instalment is still due. Would you like to pay manually?"}})
         
     elif rs.case_type in ['failed_payment', 'failed_subscription']:
+        tools_to_call.append({"name": "send_email_reminder", "args": {"urgency": "gentle"}})
         if rs.amount_inr > 15000 and rs.case_type == "failed_subscription":
             # The Above ₹15,000 EMI Rule
             tools_to_call.append({"name": "create_payment_link", "args": {}})
@@ -259,9 +260,18 @@ def after_execute(state: AgentState):
     Decides where to go after executing tools. 
     If complete_case was just executed, we bypass the LLM and go straight to audit.
     """
-    last_message = state["messages"][-1]
-    if getattr(last_message, "name", None) == "complete_case":
-        return "audit"
+    messages = state["messages"]
+    
+    # Check if any of the recent tool results are from complete_case or escalate_to_human
+    # (These are terminal actions - always go to audit)
+    for msg in reversed(messages):
+        msg_type = getattr(msg, "type", "")
+        msg_name = getattr(msg, "name", None)
+        if msg_type == "tool" and msg_name in ("complete_case", "escalate_to_human"):
+            return "audit"
+        # Stop looking once we pass the tool results batch
+        if msg_type == "ai":
+            break
         
     if state.get("event_source", "").startswith("inbound."):
         return "decide_reply"

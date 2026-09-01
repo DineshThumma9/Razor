@@ -88,7 +88,7 @@ async def handle_payment_event(payload: dict, db: AsyncSession) -> dict:
                 # Trigger the graph so it can invoke escalate_to_human
                 agent = build_agent(matched_case)
                 config = {"configurable": {"thread_id": matched_case.case_id}}
-                await agent.ainvoke({"messages": [], "recovery_state": matched_case, "event_source": "inbound.webhook"}, config=config)
+                await agent.ainvoke({"messages": [], "recovery_state": matched_case, "event_source": "automated.dispute"}, config=config)
                 
             return {"status": f"Case {matched_case.case_id} marked as {matched_case.recovery_status}!"}
                 

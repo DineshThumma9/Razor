@@ -7,7 +7,7 @@ from config.clients import (
     send_resend_email,
     send_twilio_whatsapp,
 )
-from config.db import AsyncSessionLocal
+import config.db as app_db
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from models.schema import (
@@ -23,7 +23,7 @@ from service.states import load_state, save_state
 
 
 async def _schedule_task(state, target_date: datetime, db):
-    from background.worker import invoke_agent_task, revoke_active_task
+    from background.worker import invoke_agent_task, revoke_active_task, broker
     
     if state.active_task_id:
         await revoke_active_task(state.active_task_id)
@@ -32,6 +32,10 @@ async def _schedule_task(state, target_date: datetime, db):
     delta_seconds = (target_date - now).total_seconds()
     if delta_seconds < 0:
         delta_seconds = 60
+
+    # Ensure broker is connected (important when called from within a worker task)
+    if broker.connection_pool is None:
+        await broker.startup()
 
     task = await invoke_agent_task.kiq(state.case_id)
     # Note: For Taskiq, we don't have task.id on kiq immediately in the same way as Celery, but taskiq returns a TaskiqResult
@@ -60,7 +64,7 @@ async def send_email_reminder(urgency: str, config: RunnableConfig) -> str:
     Use 'gentle' for first contact, 'urgent' for 2nd attempt, 'final' before escalation.
     """
     case_id = config.get("configurable", {}).get("thread_id")
-    async with AsyncSessionLocal() as db:
+    async with app_db.AsyncSessionLocal() as db:
         state = await load_state(case_id, db)
         customer_name = state.customer.get("name", "Customer")
         customer_email = state.customer.get("email", "")
@@ -91,7 +95,7 @@ async def create_payment_link(config: RunnableConfig) -> str:
     Use this for hard declines (expired card, lost card) where the customer must re-enter card details.
     """
     case_id = config.get("configurable", {}).get("thread_id")
-    async with AsyncSessionLocal() as db:
+    async with app_db.AsyncSessionLocal() as db:
         state = await load_state(case_id, db)
         customer_name = state.customer.get("name", "Customer")
         customer_email = state.customer.get("email", "")
@@ -124,7 +128,7 @@ async def escalate_to_human(reason: str, config: RunnableConfig) -> str:
     3+ failed attempts, or legal action needed.
     """
     case_id = config.get("configurable", {}).get("thread_id")
-    async with AsyncSessionLocal() as db:
+    async with app_db.AsyncSessionLocal() as db:
         state = await load_state(case_id, db)
         customer_name = state.customer.get("name", "Customer")
 
@@ -175,7 +179,7 @@ async def get_next_salary_date(config: RunnableConfig) -> str:
         hours=10
     )  # 10 AM
 
-    async with AsyncSessionLocal() as db:
+    async with app_db.AsyncSessionLocal() as db:
         state = await load_state(case_id, db)
         await _schedule_task(state, target_time, db)
         await _log_audit(state, "get_next_salary_date", target_time, db)
@@ -204,7 +208,7 @@ async def send_whatsapp_msg(msg: str, config: RunnableConfig):
     msg is the content of the message.
     """
     case_id = config.get("configurable", {}).get("thread_id")
-    async with AsyncSessionLocal() as db:
+    async with app_db.AsyncSessionLocal() as db:
         state = await load_state(case_id, db)
         contact_number = state.customer.get("contact", "")
 
@@ -232,7 +236,7 @@ async def get_voice_call(msg: str, config: RunnableConfig):
     msg is the text to speak.
     """
     case_id = config.get("configurable", {}).get("thread_id")
-    async with AsyncSessionLocal() as db:
+    async with app_db.AsyncSessionLocal() as db:
         state = await load_state(case_id, db)
         contact_number = state.customer.get("contact", "")
 
@@ -284,7 +288,7 @@ async def log_promise_to_pay(
             config=config,
         )
 
-    async with AsyncSessionLocal() as db:
+    async with app_db.AsyncSessionLocal() as db:
         state = await load_state(case_id, db)
         target_date = datetime.fromisoformat(date_str)
         if not sanity_date(target_date):
