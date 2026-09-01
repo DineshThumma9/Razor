@@ -50,9 +50,10 @@ export default function App() {
   const processingCases = cases.filter((c) => !['escalated', 'recovered', 'closed'].includes(c.recovery_status))
 
   return (
-    <TooltipProvider>
-      <div className="h-screen bg-[#09090d] text-zinc-100 font-sans flex flex-col overflow-hidden">
-        {/* Nav */}
+    <TooltipProvider delay={0}>
+      <div className="flex flex-col h-screen overflow-hidden bg-[#0a0a0c] text-zinc-300 font-sans selection:bg-indigo-500/30">
+        
+        {/* Header (Top Navigation) */}
         <header className="bg-[#09090d]/80 backdrop-blur sticky top-0 z-40 shrink-0 border-b border-zinc-800/60">
           <div className="max-w-screen-xl mx-auto px-6 h-14 flex items-center justify-between gap-6">
             <div className="flex items-center gap-2">

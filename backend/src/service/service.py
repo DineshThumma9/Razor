@@ -124,7 +124,7 @@ async def handle_payment_event(payload: dict, db: AsyncSession) -> dict:
             await save_state(new_state, db)
             agent = build_agent(new_state)
             config = {"configurable": {"thread_id": new_state.case_id}}
-            await agent.ainvoke({"messages": [], "recovery_state": new_state, "event_source": "inbound.webhook"}, config=config)
+            await agent.ainvoke({"messages": [], "recovery_state": new_state, "event_source": "automated.webhook"}, config=config)
             return {"status": "lost revenue case created and agent invoked!"}
             
     # 5. Order Creation (15-Minute Abandoned Cart Timer)
