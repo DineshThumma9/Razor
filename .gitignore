@@ -24,3 +24,7 @@ backend/data
 *.log 
 .env.example 
 backend/.env.prod
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
