@@ -42,8 +42,7 @@ def get_http_client():
 def get_redis_client():
     global redis_client
     if redis_client is None:
-        url = settings.redis_url if settings.redis_url and settings.redis_url.strip() else "redis://default:gQAAAAAAAp1TAAIgcDE4YmIwMzAyNTQwMWY0Zjk4OWQzNWNhNmMzOGNjNjU5Nw@hot-koala-171347.upstash.io:6379"
-        redis_client = Redis.from_url(url, decode_responses=True)
+        redis_client = Redis.from_url(settings.redis_url, decode_responses=True)
     return redis_client
 
 
