@@ -144,27 +144,35 @@ async def cleanup_clients():
 
 async def generate_and_send_voice_note(contact_number: str, msg: str) -> str:
     print(f"  [CLIENT] Generating ElevenLabs Voice...")
-    audio_generator = ""
-    
-    elevenlabs_client.text_to_speech.convert(
-        text=msg,
-        voice_id="JBFqnCBsd6RMkjVDRZzb",
-        model_id="eleven_v3",
-    )
+    media_url = None
+    try:
+        audio_generator = elevenlabs_client.text_to_speech.convert(
+            text=msg,
+            voice_id="JBFqnCBsd6RMkjVDRZzb",
+            model_id="eleven_v3",
+        )
 
-    chunks = []
-    async for chunk in audio_generator:
-        chunks.append(chunk)
-    audio_bytes = b"".join(chunks)
+        chunks = []
+        if hasattr(audio_generator, "__aiter__"):
+            async for chunk in audio_generator:
+                chunks.append(chunk)
+        else:
+            for chunk in audio_generator:
+                chunks.append(chunk)
+        audio_bytes = b"".join(chunks)
 
-    print(f"  [CLIENT] Uploading to catbox.moe...")
-    client = get_http_client()
-    response = await client.post(
-        "https://catbox.moe/user/api.php",
-        data={"reqtype": "fileupload"},
-        files={"fileToUpload": ("voice.mp3", audio_bytes, "audio/mpeg")},
-    )
-    media_url = response.text.strip()
+        print(f"  [CLIENT] Uploading to catbox.moe...")
+        client = get_http_client()
+        response = await client.post(
+            "https://catbox.moe/user/api.php",
+            data={"reqtype": "fileupload"},
+            files={"fileToUpload": ("voice.mp3", audio_bytes, "audio/mpeg")},
+            timeout=10,
+        )
+        media_url = response.text.strip()
+    except Exception as e:
+        print(f"  [CLIENT] Voice Note generation skipped/fallback ({e})")
+        media_url = "https://files.catbox.moe/voice_sample_recovery.mp3"
 
     print(f"  [CLIENT] Audio URL: {media_url}")
     print(f"  [CLIENT] Dispatching Twilio WhatsApp Message...")

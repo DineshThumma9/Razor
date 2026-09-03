@@ -19,6 +19,7 @@ export default function App() {
   const [loadingStats, setLoadingStats] = useState(true)
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [drawerWidth, setDrawerWidth] = useState(720)
 
   const refresh = useCallback(async () => {
     try {
@@ -143,12 +144,19 @@ export default function App() {
 
         {/* Case Details Slide-Over Sheet */}
         <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-          <SheetContent side="right" showCloseButton={false} className="bg-[#0f0f14] border-l border-zinc-800/80 text-zinc-100 flex flex-col p-0 w-full sm:max-w-xl shadow-2xl">
+          <SheetContent 
+            side="right" 
+            showCloseButton={false} 
+            style={{ width: `${drawerWidth}px`, maxWidth: '95vw' }}
+            className="bg-[#0d1117] border-l border-zinc-800 text-zinc-100 flex flex-col p-0 shadow-2xl transition-none"
+          >
             <CaseDrawer
               caseId={selectedCaseId}
               open={drawerOpen}
               onClose={() => setDrawerOpen(false)}
               onAction={refresh}
+              width={drawerWidth}
+              onResize={setDrawerWidth}
             />
           </SheetContent>
         </Sheet>

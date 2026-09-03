@@ -244,13 +244,18 @@ async def audit(state: AgentState):
             rs = rs_snapshot
 
         if last_ai_msg and last_ai_msg.tool_calls:
-            # Don't increment beyond 3 if escalated
-            if rs.recovery_status != "escalated":
+            if any(call["name"] == "complete_case" for call in last_ai_msg.tool_calls):
+                rs.recovery_status = "closed"
+            elif any(call["name"] == "escalate_to_human" for call in last_ai_msg.tool_calls):
+                rs.recovery_status = "escalated"
+
+            # Don't increment beyond 3 if escalated or closed
+            if rs.recovery_status not in ["escalated", "closed"]:
                 rs.attempt_count = max(rs.attempt_count, rs_snapshot.attempt_count + 1)
             # Only update last_action_taken if a channel tool was used and tools didn't already set it
             if not rs.last_action_taken:
                 for call in reversed(last_ai_msg.tool_calls):
-                    if call["name"] in CHANNEL_TOOLS:
+                    if call["name"] in CHANNEL_TOOLS or call["name"] in ["complete_case"]:
                         rs.last_action_taken = call["name"]
                         break
 

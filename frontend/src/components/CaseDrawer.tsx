@@ -1,43 +1,79 @@
 import { useState, useEffect } from 'react'
-
 import { Skeleton } from '@/components/ui/skeleton'
-import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { fetchCase, approveEscalation, closeCase } from '../api'
 import type { Case } from '../types'
-import { fmt } from '../utils/formatters'
-import { StatusPill } from './StatusPill'
-import { TypeBadge } from './TypeBadge'
+import { fmt, fmtTs } from '../utils/formatters'
 import { AuditTimeline } from './AuditTimeline'
+import { 
+  Copy, 
+  Check, 
+  X, 
+  Mail, 
+  Phone, 
+  AlertTriangle, 
+  ShieldCheck
+} from 'lucide-react'
 
 export function CaseDrawer({
   caseId,
   open,
   onClose,
   onAction,
+  width,
+  onResize,
 }: {
   caseId: string | null
   open: boolean
   onClose: () => void
   onAction: () => void
+  width: number
+  onResize: (width: number) => void
 }) {
   const [detail, setDetail] = useState<Case | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [approving, setApproving] = useState(false)
   const [closing, setClosing] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     if (!caseId || !open) return
     setLoading(true)
     setDetail(null)
     setError(null)
+    setCopied(false)
     fetchCase(caseId)
       .then(setDetail)
       .catch((err) => setError(err?.message || 'Failed to load case details'))
       .finally(() => setLoading(false))
   }, [caseId, open])
+
+  const handleCopyId = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!detail?.case_id) return
+    navigator.clipboard.writeText(detail.case_id)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startWidth = width
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const delta = startX - moveEvent.clientX
+      const newWidth = Math.min(Math.max(startWidth + delta, 460), window.innerWidth - 60)
+      onResize(newWidth)
+    }
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+  }
 
   const handleApprove = async () => {
     if (!detail) return
@@ -64,121 +100,218 @@ export function CaseDrawer({
   }
 
   return (
-    <div className="h-full bg-[#0f0f14] border-l border-zinc-800/60 p-0 flex flex-col relative">
+    <div className="h-full bg-[#0d1117] text-zinc-100 flex flex-col relative w-full overflow-hidden select-none">
+      {/* Draggable Resize Handle on Left Edge */}
+      <div
+        onMouseDown={handleMouseDown}
+        className="absolute left-0 top-0 bottom-0 w-2.5 -translate-x-1 cursor-col-resize hover:bg-blue-500/40 active:bg-blue-500 flex items-center justify-center group z-30 transition-colors"
+        title="Drag to resize drawer width"
+      >
+        <div className="w-1 h-7 rounded-full bg-zinc-700 group-hover:bg-blue-400 transition-colors" />
+      </div>
+
+      {/* Loading Skeleton */}
       {loading && (
-        <div className="p-6 flex flex-col gap-3">
-          <Skeleton className="h-6 w-48 bg-zinc-800" />
-          <Skeleton className="h-4 w-64 bg-zinc-800" />
-          <Skeleton className="h-4 w-32 bg-zinc-800" />
-          <Separator className="bg-zinc-800 my-2" />
-          <Skeleton className="h-24 w-full bg-zinc-800" />
+        <div className="p-8 flex flex-col gap-6 select-auto">
+          <div className="flex justify-between items-center">
+            <Skeleton className="h-5 w-32 bg-zinc-800" />
+            <Skeleton className="h-7 w-7 rounded-md bg-zinc-800" />
+          </div>
+          <Skeleton className="h-9 w-64 bg-zinc-800" />
+          <Skeleton className="h-4 w-80 bg-zinc-800" />
+          <div className="h-px bg-zinc-800/60 my-2" />
+          <Skeleton className="h-40 w-full bg-zinc-800 rounded-xl" />
         </div>
       )}
 
+      {/* Error View */}
       {error && !loading && (
-        <div className="p-6 flex flex-col items-center justify-center text-center h-full">
-          <p className="text-sm text-red-400 mb-2">{error}</p>
-          <button onClick={onClose} className="text-xs text-zinc-500 hover:text-zinc-300 underline">Close</button>
+        <div className="p-12 flex flex-col items-center justify-center text-center h-full select-auto">
+          <AlertTriangle className="w-9 h-9 text-rose-400 mb-3" />
+          <p className="text-sm text-rose-300 font-semibold mb-1">{error}</p>
+          <p className="text-xs text-zinc-500 mb-6 max-w-sm">
+            Could not retrieve case details. Please try again or refresh the dashboard.
+          </p>
+          <Button variant="outline" size="sm" onClick={onClose} className="border-zinc-700 text-zinc-300">
+            Close
+          </Button>
         </div>
       )}
 
       {!detail && !loading && !error && (
-        <div className="p-6 flex flex-col items-center justify-center text-center h-full text-zinc-500 text-sm">
-          Select a case to view details
+        <div className="p-12 flex flex-col items-center justify-center text-center h-full text-zinc-500 text-sm select-auto">
+          Select a case to view its details
         </div>
       )}
 
       {detail && !loading && (
-        <>
-          {/* Header */}
-          <div className="px-6 pt-6 pb-4 border-b border-zinc-800/60">
-            <div className="text-left p-0">
-              <div className="flex justify-between items-center mb-1">
-                <div className="flex items-center gap-2">
-                  <p className="text-xs text-zinc-500 uppercase tracking-wider">Case Details</p>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(detail.case_id); }}
-                    className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-400 bg-zinc-800/60 hover:bg-zinc-700 hover:text-zinc-200 px-1.5 py-0.5 rounded transition-colors"
-                    title="Copy Case ID"
-                  >
-                    <span className="truncate max-w-[120px]">{detail.case_id}</span>
-                    <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                  </button>
-                </div>
-                <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <h2 className="text-xl font-semibold text-zinc-100 truncate">{detail.customer.name}</h2>
-                  <p className="text-sm text-zinc-500 mt-0.5">{detail.customer.email}</p>
-                  <p className="text-sm text-zinc-500">{detail.customer.contact ? `+91 ${detail.customer.contact}` : '—'}</p>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-2xl font-bold text-amber-400">₹{fmt(detail.amount_inr)}</p>
-                  <p className="text-xs text-zinc-500 mt-0.5">At Risk</p>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2 mt-3">
-                <StatusPill status={detail.recovery_status} />
-                <TypeBadge type={detail.case_type} />
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border border-zinc-700/40 bg-zinc-800/40 text-zinc-400">
-                  Attempt {detail.attempt_count}/3
-                </span>
-                {detail.decline_type && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border border-zinc-700/40 bg-zinc-800/40 text-zinc-400">
-                    {detail.decline_type} decline
-                  </span>
+        <div className="flex flex-col h-full overflow-hidden select-auto">
+          {/* Top Bar: Case ID & Dismiss */}
+          <div className="px-8 py-3.5 border-b border-zinc-800/60 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                Case File
+              </span>
+              <button
+                onClick={handleCopyId}
+                className="inline-flex items-center gap-1.5 text-xs font-mono px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-zinc-200 transition-colors"
+                title="Click to copy case ID"
+              >
+                {copied ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-emerald-400 font-medium">Copied ID</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5 text-zinc-500" />
+                    <span className="truncate max-w-[200px]">{detail.case_id}</span>
+                  </>
                 )}
+              </button>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-1 rounded-md text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Customer Profile & Amount (Clean, Uncluttered, No Gradient Soup) */}
+          <div className="px-8 py-5 border-b border-zinc-800/60 shrink-0 space-y-4">
+            <div className="flex items-start justify-between gap-6 flex-wrap">
+              <div className="space-y-1 min-w-0">
+                <h2 className="text-2xl font-bold tracking-tight text-white">
+                  {detail.customer.name || 'Unknown Customer'}
+                </h2>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-400">
+                  {detail.customer.email && (
+                    <span className="flex items-center gap-1.5">
+                      <Mail className="w-3.5 h-3.5 text-zinc-500" />
+                      {detail.customer.email}
+                    </span>
+                  )}
+                  {detail.customer.contact && (
+                    <span className="flex items-center gap-1.5 font-mono">
+                      <Phone className="w-3.5 h-3.5 text-zinc-500" />
+                      +91 {detail.customer.contact}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Clean Amount */}
+              <div className="text-right shrink-0">
+                <div className="text-2xl font-bold font-mono text-zinc-100 tracking-tight">
+                  ₹{fmt(detail.amount_inr)}
+                </div>
+                <div className="text-[11px] text-zinc-500 uppercase tracking-wider mt-0.5">
+                  {detail.recovery_status === 'recovered' ? 'Recovered' : 'Amount at Risk'}
+                </div>
+              </div>
+            </div>
+
+            {/* Clean Metadata Row (Properly Distributed Space, No Heavy Cards) */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-3 border-t border-zinc-800/40 text-xs">
+              <div>
+                <span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-0.5">Status</span>
+                <span className="inline-flex items-center gap-1.5 font-medium text-zinc-200">
+                  {detail.recovery_status === 'escalated' ? (
+                    <>
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                      <span className="text-rose-400">Escalated</span>
+                    </>
+                  ) : detail.recovery_status === 'recovered' ? (
+                    <>
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      <span className="text-emerald-400">Recovered</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                      <span>Active ({detail.attempt_count}/3)</span>
+                    </>
+                  )}
+                </span>
+              </div>
+
+              <div>
+                <span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-0.5">Decline Cause</span>
+                <span className="font-medium text-zinc-200 block truncate">
+                  {detail.failure_reason || detail.decline_type || 'Payment Failed'}
+                </span>
+              </div>
+
+              <div>
+                <span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-0.5">Next Contact</span>
+                <span className="font-mono text-zinc-300 block truncate">
+                  {detail.next_retry_at ? fmtTs(detail.next_retry_at) : '—'}
+                </span>
+              </div>
+
+              <div>
+                <span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-0.5">Category</span>
+                <span className="text-zinc-300 block capitalize truncate">
+                  {detail.case_type.replace(/_/g, ' ')}
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Body — scrollable */}
-          <ScrollArea className="flex-1 px-6 py-4">
-            <div className="flex flex-col gap-6">
-              {/* Failure reason */}
-              <div>
-                <p className="text-xs text-zinc-500 uppercase tracking-wider mb-2">Issue</p>
-                <div className="p-3 rounded-md bg-zinc-800/30 border border-zinc-800">
-                  <p className="text-sm text-zinc-300 font-medium">{detail.failure_reason}</p>
-                </div>
-              </div>
+          {/* Subheader: Event Audit Trail */}
+          <div className="px-8 py-2.5 bg-zinc-950/30 border-b border-zinc-800/50 flex items-center justify-between text-xs shrink-0">
+            <span className="font-semibold uppercase tracking-wider text-zinc-400 text-[11px]">
+              Audit Trail & Communications
+            </span>
+            <span className="text-[11px] font-mono text-zinc-500">
+              {detail.audit_log?.length || 0} events
+            </span>
+          </div>
 
-              {/* Audit Trail */}
-              <div>
-                <p className="text-xs text-zinc-500 uppercase tracking-wider mb-3">Recovery Trail</p>
-                <AuditTimeline entries={detail.audit_log ?? []} />
-              </div>
+          {/* Scrollable Timeline Stream */}
+          <ScrollArea className="flex-1 px-8 py-6">
+            <div className="max-w-2xl">
+              <AuditTimeline 
+                entries={detail.audit_log ?? []} 
+                customerName={detail.customer.name}
+              />
             </div>
           </ScrollArea>
 
-          {/* Footer */}
-          <div className="p-4 border-t border-zinc-800/60 bg-zinc-900/30 flex gap-3">
+          {/* Bottom Action Footer */}
+          <div className="p-4 border-t border-zinc-800 bg-[#0d1117] flex gap-3 shrink-0">
             {detail.recovery_status === 'escalated' ? (
-              <Button
-                onClick={handleApprove}
-                disabled={approving}
-                className="flex-1 bg-amber-500 hover:bg-amber-600 text-amber-950 font-medium"
-              >
-                {approving ? 'Approving…' : 'Approve & Retry'}
-              </Button>
+              <>
+                <Button
+                  onClick={handleApprove}
+                  disabled={approving}
+                  className="flex-1 font-semibold h-10 bg-amber-500 hover:bg-amber-600 text-zinc-950 shadow-sm text-xs"
+                >
+                  <ShieldCheck className="w-4 h-4 mr-1.5" />
+                  {approving ? 'Approving...' : 'Approve & Manual Retry'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleClose}
+                  disabled={closing}
+                  className="h-10 px-4 border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs"
+                >
+                  {closing ? 'Closing...' : 'Close Case'}
+                </Button>
+              </>
             ) : (
               <Button
+                variant="outline"
                 onClick={handleClose}
                 disabled={closing}
-                className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border border-zinc-700"
+                className="w-full h-9 border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs"
               >
-                {closing ? 'Closing…' : 'Mark as Closed'}
+                {closing ? 'Closing Case...' : 'Mark Case as Closed'}
               </Button>
             )}
           </div>
-        </>
+        </div>
       )}
     </div>
   )

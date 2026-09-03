@@ -9,6 +9,10 @@ class AuditEntry(BaseModel):
     recovery_status: str 
     customer: Dict[str, Any]
     next_contact: Optional[datetime] = None
+    message: Optional[str] = None
+    channel: Optional[str] = None
+    direction: Optional[str] = None  # outbound | inbound | system
+    created_at: Optional[datetime] = Field(default_factory=datetime.now)
 
 
 class Invoice(BaseModel):

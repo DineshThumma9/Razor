@@ -204,5 +204,17 @@ async def parse_webhook(payload: dict, db: AsyncSession) -> RecoveryState | None
         last_action_taken=None,
         first_seen_at=datetime.now(),
         next_retry_at=None,
-        audit_log=[]
+        audit_log=[
+            {
+                "event_triggered": "payment_failed",
+                "amount": str(amount),
+                "recovery_status": "pending",
+                "customer": customer,
+                "next_contact": None,
+                "message": f"Payment failure detected: {failure_reason or 'Transaction declined'}",
+                "channel": "system",
+                "direction": "system",
+                "created_at": datetime.now().isoformat()
+            }
+        ]
     )

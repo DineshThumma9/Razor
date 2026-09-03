@@ -211,6 +211,20 @@ async def handle_inbound_whatsapp(from_number: str, body: str, db: AsyncSession,
 
     print(f"[INBOUND WHATSAPP] Matched case {active_case.case_id}. Waking up agent!")
         
+    active_case.audit_log.append({
+        "event_triggered": "customer_reply",
+        "amount": str(active_case.amount_inr),
+        "recovery_status": active_case.recovery_status,
+        "customer": active_case.customer,
+        "next_contact": active_case.next_retry_at.isoformat() if active_case.next_retry_at else None,
+        "message": body,
+        "channel": "whatsapp",
+        "direction": "inbound",
+        "created_at": datetime.now().isoformat()
+    })
+    from service.states import save_state
+    await save_state(active_case, db)
+
     new_message = HumanMessage(content=f"Customer Replied via WhatsApp: {body}")
     agent = build_agent(active_case)
     config = {"configurable": {"thread_id": active_case.case_id}}

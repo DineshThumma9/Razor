@@ -52,21 +52,32 @@ async def _schedule_task(state, target_date: datetime, db):
     logger.info(f"  [SCHEDULE] saved in Redis with schedule_id={created.schedule_id} — next_retry_at={state.next_retry_at}")
 
 
-async def _log_audit(state, tool_name: str, next_retry_at: datetime, db):
+async def _log_audit(
+    state,
+    tool_name: str,
+    next_retry_at: datetime | None,
+    db,
+    message: str | None = None,
+    channel: str | None = None,
+    direction: str | None = None,
+):
     entry = AuditEntry(
         event_triggered=tool_name,
         amount=str(state.amount_inr),
         recovery_status=state.recovery_status,
         customer=state.customer,
         next_contact=next_retry_at,
+        message=message,
+        channel=channel,
+        direction=direction,
+        created_at=datetime.now(),
     )
     state.audit_log.append(entry.model_dump(mode="json"))
-    logger.info(f"  [LOG_AUDIT] tool={tool_name} next_retry_at_param={next_retry_at} state.next_retry_at_before={state.next_retry_at}")
+    logger.info(f"  [LOG_AUDIT] tool={tool_name} next_retry_at_param={next_retry_at} message={message}")
     if next_retry_at:
         state.next_retry_at = next_retry_at
     if tool_name in ["send_whatsapp_msg", "send_email_reminder", "get_voice_call", "escalate_to_human"]:
         state.last_action_taken = tool_name
-    logger.info(f"  [LOG_AUDIT] after set → state.next_retry_at={state.next_retry_at} last_action={state.last_action_taken}")
     await save_state(state, db)
     logger.info(f"  [LOG_AUDIT] save_state done for case={state.case_id}")
 
@@ -91,14 +102,22 @@ async def send_email_reminder(urgency: str, config: RunnableConfig) -> str:
 
         await send_resend_email(urgency, customer_name, customer_email, amount_inr)
 
-        if state.attempt_count == 0 and state.next_retry_at and state.next_retry_at > datetime.now():
+        if state.next_retry_at and state.next_retry_at > datetime.now():
             next_contact = state.next_retry_at
         else:
-            base_time = max(datetime.now(), state.next_retry_at) if state.next_retry_at else datetime.now()
-            next_contact = base_time + timedelta(days=3)
+            next_contact = datetime.now() + timedelta(days=3)
         await _schedule_task(state, next_contact, db)
 
-        await _log_audit(state, "send_email_reminder", next_contact, db)
+        email_msg = f"Reminder ({urgency}): Payment of ₹{amount_inr:,.0f} for your order is due. Please complete payment to avoid service interruption."
+        await _log_audit(
+            state,
+            "send_email_reminder",
+            next_contact,
+            db,
+            message=email_msg,
+            channel="email",
+            direction="outbound",
+        )
 
     return f"Email ({urgency}) queued for {customer_email}"
 
@@ -124,17 +143,25 @@ async def create_payment_link(config: RunnableConfig) -> str:
         )
         logger.info(f"    → Link     : {short_url}")
 
-        if state.attempt_count == 0 and state.next_retry_at and state.next_retry_at > datetime.now():
+        if state.next_retry_at and state.next_retry_at > datetime.now():
             next_contact = state.next_retry_at
         else:
-            base_time = max(datetime.now(), state.next_retry_at) if state.next_retry_at else datetime.now()
-            next_contact = base_time + timedelta(days=1)
+            next_contact = datetime.now() + timedelta(days=1)
         try:
             await _schedule_task(state, next_contact, db)
         except Exception as e:
             logger.info(f"    [WARN] Failed to schedule follow-up task (non-fatal): {e}")
 
-        await _log_audit(state, "create_payment_link", next_contact, db)
+        link_msg = f"Secure Razorpay payment link generated: {short_url}"
+        await _log_audit(
+            state,
+            "create_payment_link",
+            next_contact,
+            db,
+            message=link_msg,
+            channel="link",
+            direction="outbound",
+        )
 
     return f"Payment link generated: {short_url}"
 
@@ -155,7 +182,15 @@ async def escalate_to_human(reason: str, config: RunnableConfig) -> str:
         logger.info(f"    → Reason   : {reason}")
 
         state.recovery_status = "escalated"
-        await _log_audit(state, "escalate_to_human", None, db)
+        await _log_audit(
+            state,
+            "escalate_to_human",
+            None,
+            db,
+            message=f"Escalated to human support. Reason: {reason}",
+            channel="system",
+            direction="system",
+        )
 
     return f"Case for {customer_name} escalated to human. Reason: {reason}"
 
@@ -206,7 +241,17 @@ async def get_next_salary_date(config: RunnableConfig) -> str:
             await _schedule_task(state, target_time, db)
         except Exception as e:
             logger.info(f"    [WARN] Failed to schedule follow-up task (non-fatal): {e}")
-        await _log_audit(state, "get_next_salary_date", target_time, db)
+
+        salary_msg = f"Upcoming salary dates: {result}. Auto-scheduled next follow-up for {target_time.strftime('%b %d, %Y')}."
+        await _log_audit(
+            state,
+            "get_next_salary_date",
+            target_time,
+            db,
+            message=salary_msg,
+            channel="system",
+            direction="system",
+        )
 
     logger.info(f"\n  [TOOL] get_next_salary_date")
     logger.info(f"    → Upcoming milestones: {result}. Scheduled retry for {target_time}.")
@@ -215,11 +260,26 @@ async def get_next_salary_date(config: RunnableConfig) -> str:
 
 
 @tool(args_schema=CompleteCaseArgs)
-async def complete_case(summary: str) -> str:
+async def complete_case(summary: str, config: RunnableConfig) -> str:
     """
     Call this tool when you have finished taking all necessary actions for this case.
     This tells the system to stop the workflow and move to the audit phase.
     """
+    case_id = config.get("configurable", {}).get("thread_id")
+    if case_id:
+        async with app_db.AsyncSessionLocal() as db:
+            state = await load_state(case_id, db)
+            if state:
+                state.recovery_status = "closed"
+                await _log_audit(
+                    state,
+                    "complete_case",
+                    None,
+                    db,
+                    message=f"Case closed: {summary}",
+                    channel="system",
+                    direction="system",
+                )
     print(f"\n  [TOOL] complete_case")
     print(f"    → Summary : {summary}")
     return "Case workflow completed."
@@ -242,18 +302,25 @@ async def send_whatsapp_msg(msg: str, config: RunnableConfig):
         sid = await send_twilio_whatsapp(contact_number, msg)
         print(f"Message dispatched successfully! SID: {sid}")
 
-        if state.attempt_count == 0 and state.next_retry_at and state.next_retry_at > datetime.now():
+        if state.next_retry_at and state.next_retry_at > datetime.now():
             next_contact = state.next_retry_at
         else:
-            base_time = max(datetime.now(), state.next_retry_at) if state.next_retry_at else datetime.now()
-            next_contact = base_time + timedelta(days=3)
+            next_contact = datetime.now() + timedelta(days=3)
 
         try:
             await _schedule_task(state, next_contact, db)
         except Exception as e:
             print(f"    [WARN] Failed to schedule follow-up task (non-fatal): {e}")
 
-        await _log_audit(state, "send_whatsapp_msg", next_contact, db)
+        await _log_audit(
+            state,
+            "send_whatsapp_msg",
+            next_contact,
+            db,
+            message=msg,
+            channel="whatsapp",
+            direction="outbound",
+        )
 
     return f"WhatsApp sent to {contact_number}. SID: {sid}"
 
@@ -274,18 +341,25 @@ async def get_voice_call(msg: str, config: RunnableConfig):
 
         sid = await generate_and_send_voice_note(contact_number, msg)
 
-        if state.attempt_count == 0 and state.next_retry_at and state.next_retry_at > datetime.now():
+        if state.next_retry_at and state.next_retry_at > datetime.now():
             next_contact = state.next_retry_at
         else:
-            base_time = max(datetime.now(), state.next_retry_at) if state.next_retry_at else datetime.now()
-            next_contact = base_time + timedelta(days=2)
+            next_contact = datetime.now() + timedelta(days=2)
 
         try:
             await _schedule_task(state, next_contact, db)
         except Exception as e:
             print(f"    [WARN] Failed to schedule follow-up task (non-fatal): {e}")
 
-        await _log_audit(state, "get_voice_call", next_contact, db)
+        await _log_audit(
+            state,
+            "get_voice_call",
+            next_contact,
+            db,
+            message=f"Voice note dispatched: {msg}",
+            channel="voice",
+            direction="outbound",
+        )
 
     return f"Voice note dispatched successfully to {contact_number}! SID: {sid}"
 
@@ -345,7 +419,16 @@ async def log_promise_to_pay(
         if contact_number:
             await send_twilio_whatsapp(contact_number, confirm_msg)
 
-        await _log_audit(state, "log_promise_to_pay", target_date, db)
+        ptp_msg = f"Promise to pay recorded for {target_date.strftime('%b %d, %Y')}. Confirmation sent to customer."
+        await _log_audit(
+            state,
+            "log_promise_to_pay",
+            target_date,
+            db,
+            message=ptp_msg,
+            channel="system",
+            direction="system",
+        )
 
     return f"Successfully logged promise to pay on {date_str}. Confirmation message sent to customer."
 

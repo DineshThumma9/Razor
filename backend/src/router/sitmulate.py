@@ -47,11 +47,13 @@ from datetime import datetime
 def fpayload_to_payload(fstate:SimulationEvent):
      # Mock an order (represents a payment attempt that never completed)
 
+    amount_paise = int(round(float(fstate.amount) * 100))
+
     if fstate.event_type == "order.failed":
         
         order = {
             "id": f"order_mock_{int(time.time())}_{random.random()*10}",
-            "amount": fstate.amount,
+            "amount": amount_paise,
             "currency": "INR",
             "receipt": f"rcpt_fail_{random.random()*10}_{int(time.time())}",
             "notes": {
@@ -62,7 +64,7 @@ def fpayload_to_payload(fstate:SimulationEvent):
             },
         }
 
-        _id = f"pay_fail_{int(time.time())}_{random.random()*10}"
+        _id = f"pay_fail_{int(time.time())}_{int(random.random()*1000)}"
         webhook_payload = {
             "entity": "event",
             "account_id": "acc_TestMode",
@@ -73,7 +75,7 @@ def fpayload_to_payload(fstate:SimulationEvent):
                     "entity": {
                         "id": _id,
                         "entity": "payment",
-                        "amount": fstate.amount,
+                        "amount": amount_paise,
                         "currency": "INR",
                         "status": "failed",
                         "order_id": order["id"],
@@ -97,7 +99,7 @@ def fpayload_to_payload(fstate:SimulationEvent):
         "interval": 1,
         "item": {
             "name": "Renvue Pro — Test Plan",
-            "amount": 99900,
+            "amount": amount_paise,
             "currency": "INR",
             "description": "Monthly subscription (test)",
         },
@@ -163,7 +165,7 @@ def fpayload_to_payload(fstate:SimulationEvent):
             "type": "invoice",
             "description": f"Monthly billing for {fstate.name}",
             "customer_id": rzp_cust["id"],
-            "amount": fstate.amount,
+            "amount": amount_paise,
             "currency": "INR",
             "date": int(time.time()),
             "customer_details": {
@@ -175,7 +177,7 @@ def fpayload_to_payload(fstate:SimulationEvent):
                 {
                     "name": "Software License",
                     "description": "Monthly API access",
-                    "amount": fstate.amount,
+                    "amount": amount_paise,
                     "currency": "INR",
                     "quantity": 1,
                 }
@@ -227,6 +229,7 @@ async def generate_success_payload(case_id, db):
     if not state:
         return None
 
+    amount_paise = int(round(float(state.amount_inr) * 100))
     return {
         "entity": "event",
         "account_id": "acc_BFQ7uQEaa7j2z7",
@@ -237,9 +240,9 @@ async def generate_success_payload(case_id, db):
                 "entity": {
                     "id": state.case_id,
                     "entity": "payment",
-                    "amount": state.amount_inr,
+                    "amount": amount_paise,
                     "currency": "INR",
-                    "base_amount": state.amount_inr,
+                    "base_amount": amount_paise,
                     "status": "captured",
                     "order_id": state.source_id,
                     "invoice_id": None,

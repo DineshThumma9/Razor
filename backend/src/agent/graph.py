@@ -1,3 +1,4 @@
+import os
 from langgraph.graph import StateGraph, START, END
 from config.db import get_checkpointer
 from models.models import RecoveryState
@@ -69,5 +70,13 @@ def build_agent(state: RecoveryState):
     app = workflow.compile(
         checkpointer=get_checkpointer()
     )
+    
+    if not os.path.exists("agent_workflow.png"):
+        try:
+            png = app.get_graph().draw_mermaid_png()
+            with open("agent_workflow.png", "wb") as f:
+                f.write(png)
+        except Exception:
+            pass
     
     return app

@@ -11,7 +11,11 @@ export const AuditEntrySchema = z.object({
   amount: z.string(),
   recovery_status: z.string(),
   customer: CustomerSchema,
-  next_contact: z.string().nullable(),
+  next_contact: z.string().nullable().optional(),
+  message: z.string().nullable().optional(),
+  channel: z.string().nullable().optional(),
+  direction: z.string().nullable().optional(),
+  created_at: z.string().nullable().optional(),
 })
 
 export const CaseSchema = z.object({
