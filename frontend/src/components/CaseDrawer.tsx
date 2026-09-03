@@ -94,7 +94,19 @@ export function CaseDrawer({
           <div className="px-6 pt-6 pb-4 border-b border-zinc-800/60">
             <div className="text-left p-0">
               <div className="flex justify-between items-center mb-1">
-                <p className="text-xs text-zinc-500 uppercase tracking-wider">Case Details</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-zinc-500 uppercase tracking-wider">Case Details</p>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(detail.case_id); }}
+                    className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-400 bg-zinc-800/60 hover:bg-zinc-700 hover:text-zinc-200 px-1.5 py-0.5 rounded transition-colors"
+                    title="Copy Case ID"
+                  >
+                    <span className="truncate max-w-[120px]">{detail.case_id}</span>
+                    <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  </button>
+                </div>
                 <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

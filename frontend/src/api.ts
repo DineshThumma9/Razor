@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { CaseSchema, StatsSchema, type Case, type Stats } from './types'
 
 const http = axios.create({
-  baseURL: import.meta.env.API_URL || import.meta.env.VITE_API_URL,
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api',
   timeout: 15000,
 })
 
@@ -31,4 +31,18 @@ export async function approveEscalation(caseId: string): Promise<void> {
 
 export async function closeCase(caseId: string): Promise<void> {
   await http.post(`/cases/${caseId}/close`)
+}
+
+export async function simulateFire(payload: any): Promise<{ id: string }> {
+  const { data } = await http.post('/fake-event', payload)
+  return data
+}
+
+export async function simulateAction(payload: any): Promise<any> {
+  const { data } = await http.post('/fake-action', payload)
+  return data
+}
+
+export async function clearAllCases(): Promise<void> {
+  await http.delete('/cases/clear')
 }

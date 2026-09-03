@@ -7,7 +7,7 @@ class AuditEntry(BaseModel):
     event_triggered: str 
     amount: str 
     recovery_status: str 
-    customer: Dict[str, str]
+    customer: Dict[str, Any]
     next_contact: Optional[datetime] = None
 
 
@@ -192,3 +192,22 @@ class RazorpayWebhook(BaseModel):
     contains: list[str] = []
     payload: PayloadContainer
     model_config = {"extra": "ignore"} 
+
+
+class SimulationEvent(BaseModel):
+    event_type:str 
+    decline_reason:str 
+    email:str
+    phone:str 
+    name:str 
+    amount:int 
+    language:str = "english"
+
+
+class CustomerAction(BaseModel):
+    actions: str
+    case_id: str
+    messages: Optional[str] = ""
+    customer: Optional[CustomerDetails] = None
+    
+    

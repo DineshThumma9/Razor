@@ -28,12 +28,22 @@ async def get_metrics(db: AsyncSession = Depends(get_db)):
         "still_active": len(cases) - len(recovered) - len(escalated),
     }
 
-    
+from sqlalchemy import delete
+@api_router.delete("/cases/clear")
+async def clear_cases(db: AsyncSession = Depends(get_db)):
+    await db.execute(delete(RecoveryState))
+    await db.commit()
+    return {"status": "ok", "message": "All cases cleared"}
+
 @api_router.get("/cases")
 async def list_cases(db: AsyncSession = Depends(get_db)):
     cases = (await db.execute(select(RecoveryState))).scalars().all()
     sorted_cases = sorted(cases, key=lambda c: STATUS_ORDER.get(c.recovery_status, 99))
-    
+
+    for case in cases:
+        print(f"Retry at :{case.next_retry_at}")
+
+
     return [
         {
             "case_id": c.case_id,

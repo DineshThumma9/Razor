@@ -29,5 +29,5 @@ class Settings(BaseSettings):
     db_pool_recycle:int=1800
     db_checkpointer_pool_size:int=20
     frontend_url:str = ""
-
+    backend_url:str = ""
 settings = Settings()

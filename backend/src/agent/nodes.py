@@ -28,7 +28,6 @@ class AgentState(TypedDict):
 
 
 def get_discount():    
-    #Personalize message on basis of their name,amount they should pay and also offer discount between min and max discount
     prob = random.random()
     discounted = 0
     if prob <= 0.3:
@@ -117,13 +116,12 @@ async def decide_event(state: AgentState):
                 tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": f"Hi {customer_name}, your payment of ₹{rs.amount_inr:,.0f} failed. Please click the link to retry."}})
                 
     elif rs.case_type == 'abandoned_checkout':
-        tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": f"Complete your checkout with this ${get_discount()} discount!"}})
+        tools_to_call.append({"name": "create_payment_link", "args": {}})
+        tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": "You left something in your cart! Complete your checkout now and enjoy a 10% discount. Click the payment link to complete your order."}})
     elif rs.case_type == 'overdue_invoice':
         tools_to_call.append({"name": "send_email_reminder", "args": {"urgency": "urgent"}})
 
     if tools_to_call:
-        tools_to_call.append({"name": "complete_case", "args": {"summary": "Deterministic routing completed."}})
-        
         langchain_tool_calls = []
         for t in tools_to_call:
             langchain_tool_calls.append({
@@ -175,12 +173,12 @@ Min Discount : {settings.min_discount}%
 
 === RULES ===
 - If Attempt Count >= 3, you MUST call 'escalate_to_human' with a reason and stop. Do not schedule further follow-ups.
-- Check user sentiment with log_promise_to_pay and if sentiment is postive and willing to pay at a certain date then 
--       Convert relative dates (like 'next monday') to YYYY-MM-DD using Today's Date.
+- Check user sentiment with log_promise_to_pay. If sentiment is positive and they are willing to pay at a certain date, use log_promise_to_pay. Convert relative dates (like 'next monday') to YYYY-MM-DD.
 - If it's an abandoned checkout, you can negotiate a discount between the Min Discount and Max Discount. Start low and only increase if they push back.
-- Else reply them with some netural and generic message and escalare_to_human 
-- If the customer asks a question, use 'send_whatsapp_msg' to reply.
-- ALWAYS call 'complete_case' after taking your action to end the workflow.
+- If the customer asks a question or replies, use 'send_whatsapp_msg' to reply.
+- If this is a scheduled follow-up (the user hasn't replied), use 'send_whatsapp_msg' or 'send_email_reminder' to gently remind them to pay.
+- Do NOT call 'complete_case' unless the customer has explicitly paid or the issue is fully resolved.
+- Do NOT escalate unless they are very angry, they explicitly ask for a human, or Attempt Count >= 3.
 """
     
     first_human_idx = next((i for i, m in enumerate(state["messages"]) if getattr(m, "type", "") == "human"), None)
@@ -193,9 +191,9 @@ Min Discount : {settings.min_discount}%
     clean_messages = [SystemMessage(content=system_prompt)] + recent_messages
     
     llm = ChatMistralAI(model=settings.model, temperature=0, max_retries=3)
-    llm_with_tools = llm.bind_tools(tools, tool_choice="any")
+    llm_with_tools = llm.bind_tools(tools)
     
-    await asyncio.sleep(random.uniform(0.5, 3.0))
+    await asyncio.sleep(random.uniform(0.5, 2.0))
     
     for attempt in range(6):
         try:
@@ -225,21 +223,47 @@ def escalate_gate(state: AgentState):
 async def audit(state: AgentState):
     """
     Saves the final outcome to the SQLite database.
-    This is deterministic and happens unconditionally after tools are executed.
+    
+    IMPORTANT: Tools each open their own DB session and write next_retry_at / last_action_taken
+    directly. The in-memory `rs` in state["recovery_state"] is the ORIGINAL pre-tool-run snapshot.
+    We must reload from DB before saving so we don't overwrite those tool-written fields.
     """
-    rs = state["recovery_state"]
+    rs_snapshot = state["recovery_state"]
     messages = state["messages"]
     
     last_ai_msg = next((m for m in reversed(messages) if m.type == "ai" and getattr(m, "tool_calls", None)), None)
     
-    if last_ai_msg and last_ai_msg.tool_calls:
-        rs.attempt_count += 1
-        rs.last_action_taken = last_ai_msg.tool_calls[-1]["name"]
-            
+    CHANNEL_TOOLS = {"send_whatsapp_msg", "send_email_reminder", "get_voice_call", "escalate_to_human"}
+
     async with config.db.AsyncSessionLocal() as db:
+        # Reload the CURRENT DB state — tools wrote next_retry_at / last_action_taken here already
+        from service.states import load_state as _load_state
+        rs = await _load_state(rs_snapshot.case_id, db)
+        if not rs:
+            # Fallback: use snapshot if somehow not found
+            rs = rs_snapshot
+
+        if last_ai_msg and last_ai_msg.tool_calls:
+            # Don't increment beyond 3 if escalated
+            if rs.recovery_status != "escalated":
+                rs.attempt_count = max(rs.attempt_count, rs_snapshot.attempt_count + 1)
+            # Only update last_action_taken if a channel tool was used and tools didn't already set it
+            if not rs.last_action_taken:
+                for call in reversed(last_ai_msg.tool_calls):
+                    if call["name"] in CHANNEL_TOOLS:
+                        rs.last_action_taken = call["name"]
+                        break
+
+        import logging
+        logger = logging.getLogger("renvue.audit")
+        logger.info(f"[AUDIT] case={rs.case_id} attempt={rs.attempt_count} "
+                    f"last_action={rs.last_action_taken} next_retry_at={rs.next_retry_at} "
+                    f"status={rs.recovery_status}")
+
         await save_state(rs, db)
     
     return {"recovery_state": rs}
+
 
 
 def should_continue(state: AgentState):
@@ -257,22 +281,30 @@ def should_continue(state: AgentState):
 
 def after_execute(state: AgentState):
     """
-    Decides where to go after executing tools. 
-    If complete_case was just executed, we bypass the LLM and go straight to audit.
+    Decides where to go after executing tools.
+    
+    Rules:
+    - Terminal/message tools (complete_case, escalate_to_human, log_promise_to_pay, send_whatsapp_msg, send_email_reminder) → always audit
+    - Other tools for inbound conversational events → decide_reply (LLM loop)
+    - Automated (webhook, scheduled follow-up) → audit immediately
     """
     messages = state["messages"]
     
-    # Check if any of the recent tool results are from complete_case or escalate_to_human
-    # (These are terminal actions - always go to audit)
+    # Check if a conclusive action has been taken in this tool batch
     for msg in reversed(messages):
         msg_type = getattr(msg, "type", "")
         msg_name = getattr(msg, "name", None)
-        if msg_type == "tool" and msg_name in ("complete_case", "escalate_to_human"):
+        if msg_type == "tool" and msg_name in ("complete_case", "escalate_to_human", "log_promise_to_pay", "send_whatsapp_msg", "send_email_reminder"):
             return "audit"
-        # Stop looking once we pass the tool results batch
+        # Stop looking once we pass the current tool results batch
         if msg_type == "ai":
             break
-        
-    if state.get("event_source", "").startswith("inbound."):
+    
+    event_source = state.get("event_source", "")
+    
+    # Only inbound conversational events without a message sent get an LLM reply loop
+    if event_source.startswith("inbound."):
         return "decide_reply"
-    return "decide_event"
+    
+    # Automated (webhook, scheduled follow-up) → one-shot, go straight to audit
+    return "audit"

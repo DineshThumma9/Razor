@@ -67,8 +67,7 @@ def build_agent(state: RecoveryState):
 
     # Compile the graph
     app = workflow.compile(
-        checkpointer=get_checkpointer(),
-        interrupt_before=["escalate_gate"]
+        checkpointer=get_checkpointer()
     )
     
     return app

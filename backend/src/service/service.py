@@ -122,10 +122,11 @@ async def handle_payment_event(payload: dict, db: AsyncSession) -> dict:
         new_state = await parse_webhook(payload, db)
         if new_state:
             await save_state(new_state, db)
-            agent = build_agent(new_state)
-            config = {"configurable": {"thread_id": new_state.case_id}}
-            await agent.ainvoke({"messages": [], "recovery_state": new_state, "event_source": "automated.webhook"}, config=config)
-            return {"status": "lost revenue case created and agent invoked!"}
+            from background.worker import broker, invoke_agent_task
+            if broker.connection_pool is None:
+                await broker.startup()
+            await invoke_agent_task.kiq(new_state.case_id)
+            return {"status": "lost revenue case created and queued!"}
             
     # 5. Order Creation (15-Minute Abandoned Cart Timer)
     elif event == "order.created":
@@ -163,29 +164,51 @@ async def handle_inbound_email(payload: dict, db: AsyncSession) -> dict:
     return {"status": "Agent woken up successfully"}
 
 
-async def handle_inbound_whatsapp(from_number: str, body: str, db: AsyncSession) -> dict:
+async def handle_inbound_whatsapp(from_number: str, body: str, db: AsyncSession, case_id: str | None = None) -> dict:
     print(f"\n[INBOUND WHATSAPP] Received message from {from_number}: {body}")
     
-    contact_number = from_number.replace("whatsapp:", "")
-    if contact_number.startswith("+91"):
-        contact_number = contact_number[3:]
-        
-    print(f"[INBOUND WHATSAPP] Looking for active case for contact: {contact_number}")
-    
     active_case = None
-    result = await db.execute(select(RecoveryState).where(RecoveryState.recovery_status.notin_(["recovered", "closed", "escalated"])))
-    cases = result.scalars().all()
-    
-    for case in cases:
-        case_contact = case.customer.get("contact", "")
-        if case_contact == contact_number or case_contact.endswith(contact_number):
-            active_case = case
-            break
-                
+    if case_id:
+        active_case = await load_state(case_id, db)
+
     if not active_case:
-        print(f"[INBOUND WHATSAPP] Ignored: No active case found for {contact_number}")
+        contact_number = from_number.replace("whatsapp:", "")
+        if contact_number.startswith("+91"):
+            contact_number = contact_number[3:]
+            
+        print(f"[INBOUND WHATSAPP] Looking for active case for contact: {contact_number}")
+        
+        result = await db.execute(
+            select(RecoveryState)
+            .where(RecoveryState.recovery_status.notin_(["recovered", "closed", "escalated"]))
+            .order_by(RecoveryState.first_seen_at.desc())
+        )
+        cases = result.scalars().all()
+        
+        for case in cases:
+            case_contact = case.customer.get("contact", "")
+            if case_contact == contact_number or case_contact.endswith(contact_number):
+                active_case = case
+                break
+                    
+    if not active_case:
+        print(f"[INBOUND WHATSAPP] Ignored: No active case found for {contact_number if 'contact_number' in locals() else from_number}")
         return {"status": "ignored", "reason": "No active case found for this number"}
         
+    if body.strip().upper() == "STOP":
+        print(f"[INBOUND WHATSAPP] Customer requested STOP. Closing case {active_case.case_id}.")
+        active_case.recovery_status = "closed"
+        active_case.audit_log.append({
+            "event_triggered": "customer_opt_out",
+            "amount": str(active_case.amount_inr),
+            "recovery_status": "closed",
+            "customer": active_case.customer,
+            "next_contact": None
+        })
+        from service.states import save_state
+        await save_state(active_case, db)
+        return {"status": "Opted out"}
+
     print(f"[INBOUND WHATSAPP] Matched case {active_case.case_id}. Waking up agent!")
         
     new_message = HumanMessage(content=f"Customer Replied via WhatsApp: {body}")

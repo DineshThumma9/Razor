@@ -1,7 +1,7 @@
 
 import { Skeleton } from '@/components/ui/skeleton'
 import type { Case } from '../types'
-import { fmt, relTime } from '../utils/formatters'
+import { fmt, fmtTs } from '../utils/formatters'
 import { TypeBadge } from './TypeBadge'
 import { StatusPill } from './StatusPill'
 import { ChannelChip } from './ChannelChip'
@@ -23,12 +23,15 @@ export function CaseTable({
   loading: boolean
   onRowClick: (id: string) => void
 }) {
+   
+
+ 
   return (
     <div className="rounded-xl border border-zinc-800/80 overflow-x-auto overflow-y-hidden h-full bg-[#0d0d12] shadow-2xl">
       <div className="min-w-[750px]">
       {/* Header */}
       <div className="grid grid-cols-[48px_2fr_1fr_1fr_1.2fr_1fr_1fr_90px] gap-4 px-5 py-3 border-b border-zinc-800/80 bg-zinc-900/50">
-        {['#', 'Customer', 'Status', 'Amount', 'Type', 'Channel', 'Time', ''].map((h, i) => (
+        {['#', 'Customer', 'Status', 'Amount', 'Type', 'Channel', 'Next Scheduled', ''].map((h, i) => (
           <p key={i} className="text-[11px] font-semibold text-zinc-500 uppercase tracking-widest">{h}</p>
         ))}
       </div>
@@ -83,9 +86,9 @@ export function CaseTable({
               <ChannelChip action={c.last_action_taken} />
             </div>
 
-            {/* Last contact */}
+            {/* Next Scheduled */}
             <p className="text-[12px] text-zinc-400 whitespace-nowrap">
-              {relTime(c.first_seen_at)}
+              {c.next_retry_at ? fmtTs(c.next_retry_at) : (c.recovery_status === 'closed' || c.recovery_status === 'recovered' ? '—' : 'Pending')}
             </p>
 
             {/* Action */}

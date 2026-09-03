@@ -1,3 +1,4 @@
+import asyncio
 import calendar
 from datetime import date, datetime, timedelta
 
@@ -20,27 +21,35 @@ from models.schema import (
     SalaryDateArgs,
 )
 from service.states import load_state, save_state
+import logging as logger 
 
 
 async def _schedule_task(state, target_date: datetime, db):
-    from background.worker import invoke_agent_task, revoke_active_task, broker
-    
+    from background.worker import invoke_agent_task, revoke_active_task, schedule_source
+
     if state.active_task_id:
         await revoke_active_task(state.active_task_id)
 
     now = datetime.now()
-    delta_seconds = (target_date - now).total_seconds()
-    if delta_seconds < 0:
-        delta_seconds = 60
+    if target_date <= now:
+        target_date = now + timedelta(minutes=1)
 
-    # Ensure broker is connected (important when called from within a worker task)
-    if broker.connection_pool is None:
-        await broker.startup()
+    logger.info(f"  [SCHEDULE] case={state.case_id} next_retry_at={target_date.isoformat()}")
 
-    task = await invoke_agent_task.kiq(state.case_id)
-    # Note: For Taskiq, we don't have task.id on kiq immediately in the same way as Celery, but taskiq returns a TaskiqResult
-    state.active_task_id = task.task_id
+    # Ensure schedule_source is connected
+    if schedule_source._connection_pool is None:
+        await schedule_source.startup()
+
+    created = await invoke_agent_task.kicker().schedule_by_time(
+        schedule_source,
+        target_date,
+        state.case_id,
+    )
+    # Store native Taskiq schedule ID so cancellation works cleanly
+    state.active_task_id = created.schedule_id
+    state.next_retry_at = target_date
     await save_state(state, db)
+    logger.info(f"  [SCHEDULE] saved in Redis with schedule_id={created.schedule_id} — next_retry_at={state.next_retry_at}")
 
 
 async def _log_audit(state, tool_name: str, next_retry_at: datetime, db):
@@ -52,9 +61,14 @@ async def _log_audit(state, tool_name: str, next_retry_at: datetime, db):
         next_contact=next_retry_at,
     )
     state.audit_log.append(entry.model_dump(mode="json"))
+    logger.info(f"  [LOG_AUDIT] tool={tool_name} next_retry_at_param={next_retry_at} state.next_retry_at_before={state.next_retry_at}")
     if next_retry_at:
         state.next_retry_at = next_retry_at
+    if tool_name in ["send_whatsapp_msg", "send_email_reminder", "get_voice_call", "escalate_to_human"]:
+        state.last_action_taken = tool_name
+    logger.info(f"  [LOG_AUDIT] after set → state.next_retry_at={state.next_retry_at} last_action={state.last_action_taken}")
     await save_state(state, db)
+    logger.info(f"  [LOG_AUDIT] save_state done for case={state.case_id}")
 
 
 @tool(args_schema=EmailReminderArgs)
@@ -70,18 +84,19 @@ async def send_email_reminder(urgency: str, config: RunnableConfig) -> str:
         customer_email = state.customer.get("email", "")
         amount_inr = state.amount_inr
 
-        print(f"\n  [TOOL] send_email_reminder")
-        print(f"    → To      : {customer_name} <{customer_email}>")
-        print(f"    → Amount  : ₹{amount_inr}")
-        print(f"    → Urgency : {urgency}")
+        logger.info(f"\n  [TOOL] send_email_reminder")
+        logger.info(f"    → To      : {customer_name} <{customer_email}>")
+        logger.info(f"    → Amount  : ₹{amount_inr}")
+        logger.info(f"    → Urgency : {urgency}")
 
         await send_resend_email(urgency, customer_name, customer_email, amount_inr)
 
-        if state.next_retry_at and state.next_retry_at > datetime.now():
+        if state.attempt_count == 0 and state.next_retry_at and state.next_retry_at > datetime.now():
             next_contact = state.next_retry_at
         else:
-            next_contact = datetime.now() + timedelta(days=3)
-            await _schedule_task(state, next_contact, db)
+            base_time = max(datetime.now(), state.next_retry_at) if state.next_retry_at else datetime.now()
+            next_contact = base_time + timedelta(days=3)
+        await _schedule_task(state, next_contact, db)
 
         await _log_audit(state, "send_email_reminder", next_contact, db)
 
@@ -102,42 +117,42 @@ async def create_payment_link(config: RunnableConfig) -> str:
         customer_contact = state.customer.get("contact", "")
         amount_inr = state.amount_inr
 
-        print(f"\n  [TOOL] create_payment_link")
+        logger.info(f"\n  [TOOL] create_payment_link")
 
         short_url = await create_rzp_payment_link(
             customer_name, customer_email, customer_contact, amount_inr
         )
-        print(f"    → Link     : {short_url}")
+        logger.info(f"    → Link     : {short_url}")
 
-        if state.next_retry_at and state.next_retry_at > datetime.now():
+        if state.attempt_count == 0 and state.next_retry_at and state.next_retry_at > datetime.now():
             next_contact = state.next_retry_at
         else:
-            next_contact = datetime.now() + timedelta(days=1)
-            try:
-                await _schedule_task(state, next_contact, db)
-            except Exception as e:
-                print(f"    [WARN] Failed to schedule follow-up task (non-fatal): {e}")
+            base_time = max(datetime.now(), state.next_retry_at) if state.next_retry_at else datetime.now()
+            next_contact = base_time + timedelta(days=1)
+        try:
+            await _schedule_task(state, next_contact, db)
+        except Exception as e:
+            logger.info(f"    [WARN] Failed to schedule follow-up task (non-fatal): {e}")
 
         await _log_audit(state, "create_payment_link", next_contact, db)
 
-    return short_url
+    return f"Payment link generated: {short_url}"
 
 
 @tool(args_schema=EscalateArgs)
 async def escalate_to_human(reason: str, config: RunnableConfig) -> str:
     """
-    Escalate this case to a human agent.
-    Use when: hard decline after payment link sent, dispute raised,
-    3+ failed attempts, or legal action needed.
+    Escalate the case to human operations when automated recovery fails.
+    Requires a detailed reason and customer context.
     """
     case_id = config.get("configurable", {}).get("thread_id")
     async with app_db.AsyncSessionLocal() as db:
         state = await load_state(case_id, db)
         customer_name = state.customer.get("name", "Customer")
 
-        print(f"\n  [TOOL] escalate_to_human")
-        print(f"    → Customer : {customer_name}")
-        print(f"    → Reason   : {reason}")
+        logger.info(f"\n  [TOOL] escalate_to_human")
+        logger.info(f"    → Customer : {customer_name}")
+        logger.info(f"    → Reason   : {reason}")
 
         state.recovery_status = "escalated"
         await _log_audit(state, "escalate_to_human", None, db)
@@ -153,45 +168,48 @@ async def get_next_salary_date(config: RunnableConfig) -> str:
     """
     case_id = config.get("configurable", {}).get("thread_id")
 
-    ref = date.today()
-    year, month = ref.year, ref.month
-
-    milestones = []
-    for day in [1, 15]:
-        d = date(year, month, day)
-        if d > ref:
-            milestones.append(d)
-
-    last_day = calendar.monthrange(year, month)[1]
-    last_date = date(year, month, last_day)
-    offset = (last_date.weekday() - 4) % 7
-    last_friday = last_date - timedelta(days=offset)
-    if last_friday > ref:
-        milestones.append(last_friday)
-
-    milestones = sorted(set(milestones))
-
-    if not milestones:
-        next_month = month + 1 if month < 12 else 1
-        next_year = year if month < 12 else year + 1
-        milestones = [date(next_year, next_month, 1)]
-
-    result = ", ".join(str(d) for d in milestones)
-    closest = milestones[0]
-    target_time = datetime.combine(closest, datetime.min.time()) + timedelta(
-        hours=10
-    )  # 10 AM
-
     async with app_db.AsyncSessionLocal() as db:
         state = await load_state(case_id, db)
+        ref = state.next_retry_at.date() if (state and state.next_retry_at) else date.today()
+        year, month = ref.year, ref.month
+
+        milestones = []
+        for day in [1, 15]:
+            try:
+                d = date(year, month, day)
+                if d > ref:
+                    milestones.append(d)
+            except ValueError:
+                pass
+
+        last_day = calendar.monthrange(year, month)[1]
+        last_date = date(year, month, last_day)
+        offset = (last_date.weekday() - 4) % 7
+        last_friday = last_date - timedelta(days=offset)
+        if last_friday > ref:
+            milestones.append(last_friday)
+
+        milestones = sorted(set(milestones))
+
+        if not milestones:
+            next_month = month + 1 if month < 12 else 1
+            next_year = year if month < 12 else year + 1
+            milestones = [date(next_year, next_month, 1)]
+
+        result = ", ".join(str(d) for d in milestones)
+        closest = milestones[0]
+        target_time = datetime.combine(closest, datetime.min.time()) + timedelta(
+            hours=10
+        )  # 10 AM
+
         try:
             await _schedule_task(state, target_time, db)
         except Exception as e:
-            print(f"    [WARN] Failed to schedule follow-up task (non-fatal): {e}")
+            logger.info(f"    [WARN] Failed to schedule follow-up task (non-fatal): {e}")
         await _log_audit(state, "get_next_salary_date", target_time, db)
 
-    print(f"\n  [TOOL] get_next_salary_date")
-    print(f"    → Upcoming milestones: {result}. Scheduled retry for {target_time}.")
+    logger.info(f"\n  [TOOL] get_next_salary_date")
+    logger.info(f"    → Upcoming milestones: {result}. Scheduled retry for {target_time}.")
 
     return result
 
@@ -224,14 +242,16 @@ async def send_whatsapp_msg(msg: str, config: RunnableConfig):
         sid = await send_twilio_whatsapp(contact_number, msg)
         print(f"Message dispatched successfully! SID: {sid}")
 
-        if state.next_retry_at and state.next_retry_at > datetime.now():
+        if state.attempt_count == 0 and state.next_retry_at and state.next_retry_at > datetime.now():
             next_contact = state.next_retry_at
         else:
-            next_contact = datetime.now() + timedelta(days=3)
-            try:
-                await _schedule_task(state, next_contact, db)
-            except Exception as e:
-                print(f"    [WARN] Failed to schedule follow-up task (non-fatal): {e}")
+            base_time = max(datetime.now(), state.next_retry_at) if state.next_retry_at else datetime.now()
+            next_contact = base_time + timedelta(days=3)
+
+        try:
+            await _schedule_task(state, next_contact, db)
+        except Exception as e:
+            print(f"    [WARN] Failed to schedule follow-up task (non-fatal): {e}")
 
         await _log_audit(state, "send_whatsapp_msg", next_contact, db)
 
@@ -254,14 +274,16 @@ async def get_voice_call(msg: str, config: RunnableConfig):
 
         sid = await generate_and_send_voice_note(contact_number, msg)
 
-        if state.next_retry_at and state.next_retry_at > datetime.now():
+        if state.attempt_count == 0 and state.next_retry_at and state.next_retry_at > datetime.now():
             next_contact = state.next_retry_at
         else:
-            next_contact = datetime.now() + timedelta(days=2)
-            try:
-                await _schedule_task(state, next_contact, db)
-            except Exception as e:
-                print(f"    [WARN] Failed to schedule follow-up task (non-fatal): {e}")
+            base_time = max(datetime.now(), state.next_retry_at) if state.next_retry_at else datetime.now()
+            next_contact = base_time + timedelta(days=2)
+
+        try:
+            await _schedule_task(state, next_contact, db)
+        except Exception as e:
+            print(f"    [WARN] Failed to schedule follow-up task (non-fatal): {e}")
 
         await _log_audit(state, "get_voice_call", next_contact, db)
 
@@ -302,7 +324,11 @@ async def log_promise_to_pay(
 
     async with app_db.AsyncSessionLocal() as db:
         state = await load_state(case_id, db)
-        target_date = datetime.fromisoformat(date_str)
+        try:
+            target_date = datetime.fromisoformat(date_str)
+        except Exception:
+            target_date = datetime.now() + timedelta(days=3)
+
         if not sanity_date(target_date):
             return await escalate_to_human.ainvoke(
             {
@@ -312,9 +338,16 @@ async def log_promise_to_pay(
         )
 
         await _schedule_task(state, target_date, db)
+
+        # Send confirmation message directly to customer
+        confirm_msg = f"Thank you! We have noted your promise to pay on {target_date.strftime('%Y-%m-%d')}. Automated reminders are paused until then."
+        contact_number = state.customer.get("contact", "")
+        if contact_number:
+            await send_twilio_whatsapp(contact_number, confirm_msg)
+
         await _log_audit(state, "log_promise_to_pay", target_date, db)
 
-    return f"Successfully logged promise to pay on {date_str}. Let the user know it is confirmed."
+    return f"Successfully logged promise to pay on {date_str}. Confirmation message sent to customer."
 
 
 tools = [

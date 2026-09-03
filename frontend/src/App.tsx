@@ -10,7 +10,6 @@ import { CaseTable } from './components/CaseTable'
 import { CaseDrawer } from './components/CaseDrawer'
 
 import SimulateSheet from './components/SimulateSheet'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 
 export default function App() {
@@ -68,9 +67,22 @@ export default function App() {
         </header>
 
         {/* Main Content */}
-        <ScrollArea className="flex-1">
+        <div className="flex-1 overflow-y-auto">
           <main className="max-w-screen-xl mx-auto px-6 py-8">
-            <div className="flex w-full justify-end mb-6">
+            <div className="flex w-full justify-end mb-6 gap-3">
+              <Button 
+                variant="outline" 
+                onClick={async () => {
+                   if(confirm('Are you sure you want to clear all cases?')) {
+                       const { clearAllCases } = await import('./api');
+                       await clearAllCases();
+                       refresh();
+                   }
+                }}
+                className="bg-red-950/20 border-red-900/50 text-red-500 hover:bg-red-900/40 hover:text-red-400"
+              >
+                Clear All Cases
+              </Button>
               <SimulateSheet />
             </div>
             
@@ -127,7 +139,7 @@ export default function App() {
               </div>
             )}
           </main>
-        </ScrollArea>
+        </div>
 
         {/* Case Details Slide-Over Sheet */}
         <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>

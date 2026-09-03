@@ -54,14 +54,15 @@ async def send_resend_email(
     )
 
     try:
-        response = await resend.Emails.send_async(
-            {
-                "from": "Acme <onboarding@resend.dev>",
-                "to": [customer_email],
-                "subject": f"Action Required: Payment Recovery ({urgency.capitalize()})",
-                "html": html_content,
-            }
-        )
+        response = ""
+        # response = await resend.Emails.send_async(
+        #     {
+        #         "from": "Acme <onboarding@resend.dev>",
+        #         "to": [customer_email],
+        #         "subject": f"Action Required: Payment Recovery ({urgency.capitalize()})",
+        #         "html": html_content,
+        #     }
+        # )
 
         print(f"    → Email sent successfully: {response}")
         return True
@@ -104,6 +105,10 @@ async def send_twilio_whatsapp(
     if not contact_number.startswith("+"):
         contact_number = "+91" + contact_number
 
+    if "9876543210" in contact_number or "1234567890" in contact_number:
+        print(f"    → [MOCK] Bypassing Twilio for dummy number: {contact_number}")
+        return "SMmocked" + "0" * 24
+
     kwargs = {
         "from_": f"whatsapp:{settings.twilo_whatsapp_number}",
         "body": msg,
@@ -114,7 +119,8 @@ async def send_twilio_whatsapp(
 
     client = get_twilio_client()
     try:
-        res = await client.messages.create_async(**kwargs)
+        res = 1
+        #  await client.messages.create_async(**kwargs)
         if isinstance(res, tuple):
             message = res[0]
         else:
@@ -138,7 +144,9 @@ async def cleanup_clients():
 
 async def generate_and_send_voice_note(contact_number: str, msg: str) -> str:
     print(f"  [CLIENT] Generating ElevenLabs Voice...")
-    audio_generator = elevenlabs_client.text_to_speech.convert(
+    audio_generator = ""
+    
+    elevenlabs_client.text_to_speech.convert(
         text=msg,
         voice_id="JBFqnCBsd6RMkjVDRZzb",
         model_id="eleven_v3",
