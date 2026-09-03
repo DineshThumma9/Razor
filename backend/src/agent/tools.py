@@ -22,6 +22,21 @@ from models.schema import (
 )
 from service.states import load_state, save_state
 import logging as logger 
+from typing import Optional
+
+def get_next_follow_up_time(state) -> Optional[datetime]:
+    """
+    Computes progressive next retry milestone moving FORWARD in time:
+    - Attempt >= 3: None (escalated to human operations, stopping rule)
+    - Next contact is always +3 days forward from the previous scheduled milestone (or from now).
+    """
+    if getattr(state, "attempt_count", 0) >= 3:
+        return None
+
+    now = datetime.now()
+    prev_retry = getattr(state, "next_retry_at", None)
+    base_time = prev_retry if (prev_retry and prev_retry >= now) else now
+    return base_time + timedelta(days=3)
 
 
 async def _schedule_task(state, target_date: datetime, db):
@@ -76,6 +91,8 @@ async def _log_audit(
     logger.info(f"  [LOG_AUDIT] tool={tool_name} next_retry_at_param={next_retry_at} message={message}")
     if next_retry_at:
         state.next_retry_at = next_retry_at
+    elif tool_name in ["escalate_to_human", "complete_case"]:
+        state.next_retry_at = None
     if tool_name in ["send_whatsapp_msg", "send_email_reminder", "get_voice_call", "escalate_to_human"]:
         state.last_action_taken = tool_name
     await save_state(state, db)
@@ -100,15 +117,25 @@ async def send_email_reminder(urgency: str, config: RunnableConfig) -> str:
         logger.info(f"    → Amount  : ₹{amount_inr}")
         logger.info(f"    → Urgency : {urgency}")
 
-        await send_resend_email(urgency, customer_name, customer_email, amount_inr)
+        ref_code = state.case_id[-4:].upper() if len(state.case_id) >= 4 else state.case_id
+        extra_ctx = {
+            "invoice_number": state.error_details.get("invoice_number", f"INV-2026-{ref_code}"),
+            "link": f"https://rzp.io/l/inv-{ref_code.lower()}"
+        }
 
-        if state.next_retry_at and state.next_retry_at > datetime.now():
-            next_contact = state.next_retry_at
+        await send_resend_email(urgency, customer_name, customer_email, amount_inr, extra_context=extra_ctx)
+
+        next_contact = get_next_follow_up_time(state)
+        if next_contact:
+            await _schedule_task(state, next_contact, db)
         else:
-            next_contact = datetime.now() + timedelta(days=3)
-        await _schedule_task(state, next_contact, db)
+            state.next_retry_at = None
+            await save_state(state, db)
 
-        email_msg = f"Reminder ({urgency}): Payment of ₹{amount_inr:,.0f} for your order is due. Please complete payment to avoid service interruption."
+        if "b2b" in urgency:
+            email_msg = f"Corporate Dunning ({urgency}): Invoice {extra_ctx['invoice_number']} for ₹{amount_inr:,.0f} sent to Accounts Payable <{customer_email}>."
+        else:
+            email_msg = f"Reminder ({urgency}): Payment of ₹{amount_inr:,.0f} for your order is due. Please complete payment to avoid service interruption."
         await _log_audit(
             state,
             "send_email_reminder",
@@ -146,7 +173,7 @@ async def create_payment_link(config: RunnableConfig) -> str:
         if state.next_retry_at and state.next_retry_at > datetime.now():
             next_contact = state.next_retry_at
         else:
-            next_contact = datetime.now() + timedelta(days=1)
+            next_contact = get_next_follow_up_time(state)
         try:
             await _schedule_task(state, next_contact, db)
         except Exception as e:
@@ -182,6 +209,12 @@ async def escalate_to_human(reason: str, config: RunnableConfig) -> str:
         logger.info(f"    → Reason   : {reason}")
 
         state.recovery_status = "escalated"
+        state.next_retry_at = None
+        if state.active_task_id:
+            from background.worker import revoke_active_task
+            await revoke_active_task(state.active_task_id)
+            state.active_task_id = None
+
         await _log_audit(
             state,
             "escalate_to_human",
@@ -298,19 +331,19 @@ async def send_whatsapp_msg(msg: str, config: RunnableConfig):
 
         if not contact_number:
             return "Failed: Customer has no contact number."
-
+        
         sid = await send_twilio_whatsapp(contact_number, msg)
         print(f"Message dispatched successfully! SID: {sid}")
 
-        if state.next_retry_at and state.next_retry_at > datetime.now():
-            next_contact = state.next_retry_at
+        next_contact = get_next_follow_up_time(state)
+        if next_contact:
+            try:
+                await _schedule_task(state, next_contact, db)
+            except Exception as e:
+                print(f"    [WARN] Failed to schedule follow-up task (non-fatal): {e}")
         else:
-            next_contact = datetime.now() + timedelta(days=3)
-
-        try:
-            await _schedule_task(state, next_contact, db)
-        except Exception as e:
-            print(f"    [WARN] Failed to schedule follow-up task (non-fatal): {e}")
+            state.next_retry_at = None
+            await save_state(state, db)
 
         await _log_audit(
             state,
@@ -341,15 +374,15 @@ async def get_voice_call(msg: str, config: RunnableConfig):
 
         sid = await generate_and_send_voice_note(contact_number, msg)
 
-        if state.next_retry_at and state.next_retry_at > datetime.now():
-            next_contact = state.next_retry_at
+        next_contact = get_next_follow_up_time(state)
+        if next_contact:
+            try:
+                await _schedule_task(state, next_contact, db)
+            except Exception as e:
+                print(f"    [WARN] Failed to schedule follow-up task (non-fatal): {e}")
         else:
-            next_contact = datetime.now() + timedelta(days=2)
-
-        try:
-            await _schedule_task(state, next_contact, db)
-        except Exception as e:
-            print(f"    [WARN] Failed to schedule follow-up task (non-fatal): {e}")
+            state.next_retry_at = None
+            await save_state(state, db)
 
         await _log_audit(
             state,
@@ -365,15 +398,12 @@ async def get_voice_call(msg: str, config: RunnableConfig):
 
 
 
+from datetime import datetime
 
-def sanity_date(date:datetime):
+def sanity_date(d: datetime):
+    return d.date() >= datetime.today().date()
 
-    if date < datetime.today():
-        return False 
-    if abs(date.year-datetime.now().year) >= 1:
-        return False 
-    
-    return True
+
 
 @tool(args_schema=PromiseToPayArgs)
 async def log_promise_to_pay(

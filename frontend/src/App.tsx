@@ -1,8 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
-import { fetchCases, fetchStats } from './api'
-import type { Case, Stats } from './types'
+import { useCaseStore } from './store/useCaseStore'
 
 import { StatsBar } from './components/StatsBar'
 import { EscalationPanel } from './components/EscalationPanel'
@@ -13,32 +12,31 @@ import SimulateSheet from './components/SimulateSheet'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 
 export default function App() {
-  const [cases, setCases] = useState<Case[]>([])
-  const [stats, setStats] = useState<Stats | null>(null)
-  const [loadingCases, setLoadingCases] = useState(true)
-  const [loadingStats, setLoadingStats] = useState(true)
-  const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null)
-  const [drawerOpen, setDrawerOpen] = useState(false)
   const [drawerWidth, setDrawerWidth] = useState(720)
 
-  const refresh = useCallback(async () => {
-    try {
-      const [c, s] = await Promise.all([fetchCases(), fetchStats()])
-      setCases(c)
-      setStats(s)
-    } catch {
-      // silently ignore polling errors
-    } finally {
-      setLoadingCases(false)
-      setLoadingStats(false)
-    }
-  }, [])
+  const {
+    cases,
+    stats,
+    loadingCases,
+    loadingStats,
+    selectedCaseId,
+    drawerOpen,
+    sseConnected,
+    setSelectedCaseId,
+    setDrawerOpen,
+    refreshData,
+    initSSE,
+  } = useCaseStore()
 
   useEffect(() => {
-    refresh()
-    const id = setInterval(refresh, 10000)
-    return () => clearInterval(id)
-  }, [refresh])
+    refreshData()
+    const cleanupSSE = initSSE()
+    const id = setInterval(refreshData, 20000)
+    return () => {
+      cleanupSSE()
+      clearInterval(id)
+    }
+  }, [refreshData, initSSE])
 
   const openDrawer = (id: string) => {
     setSelectedCaseId(id)
@@ -64,6 +62,33 @@ export default function App() {
               <span className="text-zinc-700 mx-1">·</span>
               <span className="text-xs text-zinc-500">Recovery Ops</span>
             </div>
+
+            <div className="flex items-center gap-2.5">
+              {/* Sandbox Mode Badge */}
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[11px] font-mono">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                <span>SANDBOX MODE</span>
+              </div>
+
+              {/* Gateway Health Circuit Breaker */}
+              <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-900/90 border border-zinc-800 text-[11px] font-mono text-zinc-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                <span>RAILS 100%</span>
+              </div>
+
+              {/* Live SSE Stream Connection Badge */}
+              <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-zinc-900/90 border border-zinc-800">
+                <span className="relative flex h-2 w-2">
+                  {sseConnected && (
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  )}
+                  <span className={`relative inline-flex rounded-full h-2 w-2 ${sseConnected ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
+                </span>
+                <span className="text-[11px] font-mono tracking-tight text-zinc-400">
+                  {sseConnected ? 'LIVE SSE' : 'CONNECTING...'}
+                </span>
+              </div>
+            </div>
           </div>
         </header>
 
@@ -77,7 +102,7 @@ export default function App() {
                    if(confirm('Are you sure you want to clear all cases?')) {
                        const { clearAllCases } = await import('./api');
                        await clearAllCases();
-                       refresh();
+                       refreshData();
                    }
                 }}
                 className="bg-red-950/20 border-red-900/50 text-red-500 hover:bg-red-900/40 hover:text-red-400"
@@ -93,7 +118,7 @@ export default function App() {
             <EscalationPanel
               cases={escalatedCases}
               onSelect={openDrawer}
-              onApprove={refresh}
+              onApprove={refreshData}
             />
 
             {/* Processing Queue */}
@@ -102,14 +127,14 @@ export default function App() {
                 <div>
                   <h2 className="text-base font-semibold text-zinc-200">Active Processing Queue</h2>
                   <p className="text-xs text-zinc-500 mt-0.5">
-                    {loadingCases ? 'Loading…' : `${processingCases.length} active cases · auto-refreshes every 10s`}
+                    {loadingCases ? 'Loading…' : `${processingCases.length} active cases · live SSE updates`}
                   </p>
                 </div>
                 <Button
                   variant="outline"
                   size="sm"
                   className="border-zinc-700 bg-transparent text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 h-8 text-xs"
-                  onClick={refresh}
+                  onClick={refreshData}
                 >
                   Refresh
                 </Button>
@@ -154,7 +179,7 @@ export default function App() {
               caseId={selectedCaseId}
               open={drawerOpen}
               onClose={() => setDrawerOpen(false)}
-              onAction={refresh}
+              onAction={refreshData}
               width={drawerWidth}
               onResize={setDrawerWidth}
             />

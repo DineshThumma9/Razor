@@ -127,8 +127,16 @@ async def parse_webhook(payload: dict, db: AsyncSession) -> RecoveryState | None
             "error_source": s.error_source,
             "error_step": s.error_step
         }
+        if s.card:
+            error_details["card_network"] = s.card.network
+            error_details["card_last4"] = s.card.last4
+            error_details["card_type"] = s.card.type
+            error_details["card_issuer"] = s.card.issuer
+        if s.acquirer_data:
+            error_details["rrn"] = s.acquirer_data.get("rrn") or s.acquirer_data.get("bank_transaction_id")
+            error_details["bank_transaction_id"] = s.acquirer_data.get("bank_transaction_id")
         method = s.method
-        through = s.bank or s.vpa or s.wallet
+        through = s.bank or s.vpa or s.wallet or (s.card.issuer if s.card else None)
 
     case_type = "failed_payment"
     if "subscription" in contains:

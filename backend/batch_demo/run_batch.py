@@ -23,6 +23,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+import csv
 
 # Path configuration
 BATCH_DIR = Path(__file__).resolve().parent
@@ -30,6 +31,7 @@ BACKEND_DIR = BATCH_DIR.parent
 REPO_ROOT = BACKEND_DIR.parent
 RESULTS_DIR = BATCH_DIR / "results"
 SCENARIOS_FILE = BATCH_DIR / "scenarios.json"
+SCENARIOS_CSV = BATCH_DIR / "scenarios.csv"
 BACKEND_SRC = BACKEND_DIR / "src"
 
 sys.path.insert(0, str(BACKEND_SRC))
@@ -43,10 +45,45 @@ from dotenv import load_dotenv
 load_dotenv(BACKEND_DIR / ".env")
 
 import config.db as app_db
+
+def load_scenarios(file_path: Path) -> list[dict]:
+    """Loads benchmark scenarios from either CSV or JSON format."""
+    if file_path.suffix.lower() == ".csv":
+        scenarios = []
+        with open(file_path, mode="r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                case_t = row.get("case_type", "failed_payment")
+                evt_t = "invoice.expired" if "invoice" in case_t else "subscription.halted" if "sub" in case_t else "payment.failed"
+                scenarios.append({
+                    "id": row.get("id"),
+                    "category": row.get("category"),
+                    "title": row.get("title"),
+                    "case_type": case_t,
+                    "event_type": evt_t,
+                    "amount_inr": float(row.get("amount_inr", 0)),
+                    "method": row.get("method"),
+                    "through": row.get("through"),
+                    "decline_type": row.get("decline_type"),
+                    "failure_reason": row.get("failure_reason"),
+                    "customer": {
+                        "name": row.get("customer_name", "Customer"),
+                        "email": row.get("customer_email", ""),
+                        "contact": row.get("customer_contact", "9876543210")
+                    },
+                    "simulation": {
+                        "customer_action": row.get("expected_action", "pays_via_link"),
+                        "recovery_probability": float(row.get("recovery_prob", 1.0))
+                    }
+                })
+        return scenarios
+    else:
+        return json.loads(file_path.read_text(encoding="utf-8"))
 from models.models import RecoveryState
 from service.states import load_state, save_state
 from agent.graph import build_agent
 from service.service import handle_payment_event, handle_inbound_whatsapp
+from batch_demo.payload_builder import build_rich_webhook_payload
 
 # Operational cost constants for Indian multi-channel stack (in INR)
 COST_WHATSAPP_MSG = 0.75     # Twilio / Meta WhatsApp utility template
@@ -92,9 +129,23 @@ async def execute_scenario(scen: dict, index: int) -> dict:
     case_type = scen["case_type"]
     decline_type = scen.get("decline_type")
     failure_reason = scen.get("failure_reason")
-    error_details = scen.get("error_details", {})
+    error_details = dict(scen.get("error_details", {}))
     method = scen.get("method")
     through = scen.get("through")
+
+    # Build rich Razorpay Webhook Payload with card network and acquirer RRN
+    rich_payload = build_rich_webhook_payload(scen)
+    payment_ent = rich_payload.get("payload", {}).get("payment", {}).get("entity", {})
+    if payment_ent.get("card"):
+        error_details["card_network"] = payment_ent["card"].get("network")
+        error_details["card_last4"] = payment_ent["card"].get("last4")
+        error_details["card_type"] = payment_ent["card"].get("type")
+        error_details["card_issuer"] = payment_ent["card"].get("issuer")
+    if payment_ent.get("acquirer_data"):
+        error_details["rrn"] = payment_ent["acquirer_data"].get("rrn")
+        error_details["bank_transaction_id"] = payment_ent["acquirer_data"].get("bank_transaction_id")
+    if payment_ent.get("order_id"):
+        source_id = payment_ent["order_id"]
     
     # Initialize DB state
     async with app_db.AsyncSessionLocal() as db:
@@ -407,11 +458,20 @@ def print_console_summary(results: list[dict]):
 async def main():
     app_db._init_db()
     
-    if not SCENARIOS_FILE.exists():
-        print(f"[ERROR] Scenarios file not found at {SCENARIOS_FILE}")
+    target_file = SCENARIOS_FILE
+    if "--file" in sys.argv:
+        custom = Path(sys.argv[sys.argv.index("--file") + 1])
+        if custom.exists():
+            target_file = custom
+    elif "--csv" in sys.argv and SCENARIOS_CSV.exists():
+        target_file = SCENARIOS_CSV
+
+    if not target_file.exists():
+        print(f"[ERROR] Scenarios file not found at {target_file}")
         sys.exit(1)
 
-    scenarios = json.loads(SCENARIOS_FILE.read_text())
+    scenarios = load_scenarios(target_file)
+    print(f"[DATASET] Loaded {len(scenarios)} benchmark scenarios from {target_file.name}")
     
     # Optional index filter
     if "--index" in sys.argv:

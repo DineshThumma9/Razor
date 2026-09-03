@@ -1,3 +1,4 @@
+from datetime import timedelta
 import uuid
 import random
 import asyncio
@@ -60,6 +61,91 @@ def cant_resolve(rs: RecoveryState):
     return False, ""
 
 
+def get_escalation_tone(rs: RecoveryState) -> tuple[str, str, str]:
+    """
+    Returns (whatsapp_msg, email_urgency, voice_msg) dynamically based on attempt_count,
+    language (English/Hinglish), and case_type (B2C order vs B2B commercial invoice).
+    Includes short reference ticket code (#RNV-XXXX) for multi-case disambiguation.
+    """
+    attempt = rs.attempt_count or 1
+    name = rs.customer.get("name", "Customer")
+    amount_str = f"₹{rs.amount_inr:,.0f}"
+    lang = getattr(rs, "language", "english").lower()
+    ref_code = rs.case_id[-4:].upper() if len(rs.case_id) >= 4 else rs.case_id
+
+    # B2B Corporate Invoice Path
+    if rs.case_type == "overdue_invoice":
+        inv_num = rs.error_details.get("invoice_number", f"INV-2026-{ref_code}")
+        po_num = rs.error_details.get("po_number", f"PO-{ref_code}")
+        if attempt <= 1:
+            wa_msg = f"Dear Accounts Payable ({name}), courtesy reminder that Invoice {inv_num} ({amount_str}, PO: {po_num}) is overdue under Net-30 terms. If TDS (194C/J) has been deducted, please share Form 16A or settle via corporate portal. (Ref: #RNV-{ref_code})"
+            email_urg = "b2b_gentle"
+        elif attempt == 2:
+            wa_msg = f"Attention Accounts Payable ({name}): URGENT - Overdue Invoice {inv_num} ({amount_str}). Account is scheduled for vendor hold within 48 hours unless payment UTR is provided or balance settled. (Ref: #RNV-{ref_code})"
+            email_urg = "b2b_urgent"
+        else:
+            wa_msg = f"FINAL STATUTORY NOTICE: Commercial Invoice {inv_num} ({amount_str}) is unsettled. Account transferred to credit operations. (Ref: #RNV-{ref_code})"
+            email_urg = "b2b_final"
+        voice_msg = f"Hello {name}, this is Accounts Receivable regarding overdue commercial invoice {inv_num} for {amount_str}. Please review our email statement to prevent administrative hold. Thank you."
+        return wa_msg, email_urg, voice_msg
+
+    # Subscription Cancelled
+    if rs.case_type == "subscription_cancelled":
+        wa_msg = f"Your auto-pay was cancelled, but your {amount_str} instalment is still due. Would you like to settle manually? (Ref: #RNV-{ref_code})"
+        email_urg = "gentle" if attempt <= 1 else "urgent" if attempt == 2 else "final"
+        voice_msg = f"Hello {name}, your auto-debit was cancelled. Please complete payment using the link sent to your WhatsApp. Thank you."
+        return wa_msg, email_urg, voice_msg
+
+    # Soft Decline (Insufficient funds / Salary alignment)
+    if rs.decline_type == "soft":
+        if lang == "hinglish":
+            if attempt <= 1:
+                wa_msg = f"Namaste {name} ji, bank technical issue ki wajah se aapka {amount_str} ka payment complete nahi ho paya. Aapki booking reserved hai, retry karne ke liye link bhej rahe hain. (Ref: #RNV-{ref_code})"
+            elif attempt == 2:
+                wa_msg = f"Zaroori suchna: {name} ji, aapka {amount_str} ka payment abhi bhi pending hai. Cancellation se bachane ke liye please agle 24 ghante mein settle karein. (Ref: #RNV-{ref_code})"
+            else:
+                wa_msg = f"ANTIM NOTICE: {name} ji, {amount_str} payment ke liye yeh aakhri automated reminder hai. Account human operations ko handover ho raha hai. (Ref: #RNV-{ref_code})"
+            voice_msg = f"Namaste {name} ji, Renvue support se bol rahe hain. Dekha ki aapka {amount_str} ka payment bank issue se ruk gaya tha. WhatsApp par direct link bhej diya hai, wahan se complete kar sakte hain."
+        else:
+            if attempt <= 1:
+                wa_msg = f"Hi {name}, looks like your payment of {amount_str} didn't go through due to a temporary bank glitch. Your order is reserved. Tap the link to retry. (Ref: #RNV-{ref_code})"
+            elif attempt == 2:
+                wa_msg = f"Urgent Notice: {name}, your payment of {amount_str} remains pending. Please settle within 24 hours to avoid cancellation. (Ref: #RNV-{ref_code})"
+            else:
+                wa_msg = f"FINAL NOTICE: {name}, this is our last reminder for {amount_str}. Your account has been scheduled for administrative hold. (Ref: #RNV-{ref_code})"
+            voice_msg = f"Hello {name}, this is Renvue customer support. We noticed your payment of {amount_str} was interrupted by a temporary bank error. We've reserved your order and sent a secure link to your WhatsApp to complete it. Thank you."
+        email_urg = "gentle" if attempt <= 1 else "urgent" if attempt == 2 else "final"
+        return wa_msg, email_urg, voice_msg
+
+    # Card & Reconciliation Metadata
+    card_net = rs.error_details.get("card_network")
+    card_last4 = rs.error_details.get("card_last4")
+    card_str = f" on your {card_net} (••{card_last4})" if card_net and card_last4 else ""
+    rrn = rs.error_details.get("rrn")
+    rrn_str = f" (Bank RRN: {rrn})" if rrn else ""
+
+    # Hard Decline / Card Expired / Standard failure
+    if lang == "hinglish":
+        if attempt <= 1:
+            wa_msg = f"Namaste {name} ji, aapka {amount_str} ka payment{card_str} complete nahi ho paya. Is secure link se new card ya UPI se complete karein.{rrn_str} (Ref: #RNV-{ref_code})"
+        elif attempt == 2:
+            wa_msg = f"Zaroori notice: {name} ji, {amount_str} ka payment pending hai. Subscription pause hone se bachane ke liye please payment method update karein. (Ref: #RNV-{ref_code})"
+        else:
+            wa_msg = f"Aakhri notice: {name} ji, {amount_str} settle nahi hua. Account suspend hone ja raha hai. (Ref: #RNV-{ref_code})"
+        voice_msg = f"Namaste {name} ji, aapka {amount_str} ka payment complete nahi hua. Link humne WhatsApp par share kar diya hai, please update karein."
+    else:
+        if attempt <= 1:
+            wa_msg = f"Hi {name}, your payment of {amount_str}{card_str} was declined. Tap the link to update your payment method or pay with UPI.{rrn_str} (Ref: #RNV-{ref_code})"
+        elif attempt == 2:
+            wa_msg = f"Urgent Notice: {name}, your payment of {amount_str} is overdue. Please update your payment method today to avoid service suspension. (Ref: #RNV-{ref_code})"
+        else:
+            wa_msg = f"FINAL NOTICE: {name}, outstanding payment of {amount_str} is unresolved. Your account has been transferred to support. (Ref: #RNV-{ref_code})"
+        voice_msg = f"Hello {name}, this is Renvue support. Your transaction of {amount_str} was declined by the card network. A secure payment update link has been sent to your WhatsApp. Thank you."
+
+    email_urg = "gentle" if attempt <= 1 else "urgent" if attempt == 2 else "final"
+    return wa_msg, email_urg, voice_msg
+
+
 async def decide_event(state: AgentState):
     """
     Phase 1: Deterministic fast-path for standard automated cases.
@@ -69,11 +155,28 @@ async def decide_event(state: AgentState):
 
     target_method = rs.method 
     through = rs.through
+    ref_code = rs.case_id[-4:].upper() if len(rs.case_id) >= 4 else rs.case_id
 
     redis = get_redis_client()
     if target_method and await redis.sismember("downtimes:method", target_method):
-        if through and await redis.exists(f"downtimes:{target_method}:{through}"):
-            ai_msg = AIMessage(content="User network is down we cant do much respond with empathic wait message if tried many times ")
+        is_down = (through and await redis.exists(f"downtimes:{target_method}:{through}")) or (through and await redis.exists(f"downtimes:{target_method}:{through.upper()}"))
+        if is_down:
+            customer_name = rs.customer.get("name", "Customer")
+            bank_name = through.upper()
+            downtime_msg = (
+                f"Hi {customer_name}, we noticed {bank_name} servers are temporarily experiencing gateway downtime. "
+                f"We have paused your payment deadline. We'll update you as soon as your bank resolves this. (Ref: #RNV-{ref_code})"
+            )
+            rs.next_retry_at = datetime.now() + timedelta(hours=2)
+            ai_msg = AIMessage(
+                content="Circuit breaker open: gateway downtime active.",
+                tool_calls=[{
+                    "name": "send_whatsapp_msg",
+                    "args": {"msg": downtime_msg},
+                    "id": f"call_{uuid.uuid4().hex[:8]}",
+                    "type": "tool_call"
+                }]
+            )
             return {"messages": [ai_msg]}
 
     # Check if this error is fundamentally unrecoverable via automated retries
@@ -81,11 +184,13 @@ async def decide_event(state: AgentState):
     if is_unresolvable:
         print(f"[ROUTER] Unresolvable error detected: {rs.error_details}")
         ai_msg = AIMessage(content="Unresolvable error.", tool_calls=[
-            {"name": "send_whatsapp_msg", "args": {"msg": empathetic_msg}, "id": f"call_{uuid.uuid4().hex[:8]}", "type": "tool_call"},
+            {"name": "send_whatsapp_msg", "args": {"msg": f"{empathetic_msg} (Ref: #RNV-{ref_code})"}, "id": f"call_{uuid.uuid4().hex[:8]}", "type": "tool_call"},
             {"name": "complete_case", "args": {"summary": "Unresolvable error. Empathic message sent."}, "id": f"call_{uuid.uuid4().hex[:8]}", "type": "tool_call"}
         ])
         return {"messages": [ai_msg]}
         
+    wa_msg, email_urg, voice_msg = get_escalation_tone(rs)
+
     if rs.attempt_count >= 3:
         context_str = f"Context: Name={rs.customer.get('name', 'Unknown')}, Amount=₹{rs.amount_inr:,.0f}, Case={rs.case_type}, Last Action={rs.last_action_taken}"
         tools_to_call.append({"name": "escalate_to_human", "args": {"reason": f"Max attempts ({rs.attempt_count}) reached. {context_str}"}})
@@ -93,33 +198,31 @@ async def decide_event(state: AgentState):
         tools_to_call.append({"name": "escalate_to_human", "args": {"reason": "Customer raised a dispute"}})
         
     elif rs.case_type == 'subscription_cancelled':
-        tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": f"Your auto-pay was cancelled, but your ₹{rs.amount_inr:,.0f} instalment is still due. Would you like to pay manually?"}})
+        tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": wa_msg}})
         
     elif rs.case_type in ['failed_payment', 'failed_subscription']:
-        tools_to_call.append({"name": "send_email_reminder", "args": {"urgency": "gentle"}})
+        tools_to_call.append({"name": "send_email_reminder", "args": {"urgency": email_urg}})
         if rs.amount_inr > 15000 and rs.case_type == "failed_subscription":
             # The Above ₹15,000 EMI Rule
             tools_to_call.append({"name": "create_payment_link", "args": {}})
-            tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": f"Your auto-debit for ₹{rs.amount_inr:,.0f} failed. Under RBI rules, amounts over ₹15,000 require an OTP. Please click the link to authorize."}})
+            tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": f"Your auto-debit for ₹{rs.amount_inr:,.0f} failed. Under RBI rules, amounts over ₹15,000 require an OTP. Please click the link to authorize. (Ref: #RNV-{ref_code})"}})
         elif rs.decline_type == "soft":
             tools_to_call.append({"name": "get_next_salary_date", "args": {}})
-            customer_name = rs.customer.get('name', 'there')
-            tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": f"Hi {customer_name}, just a gentle reminder regarding your pending payment of ₹{rs.amount_inr:,.0f}."}})
+            tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": wa_msg}})
         else:
             tools_to_call.append({"name": "create_payment_link", "args": {}})
             if rs.amount_inr > 5000:
-                customer_name = rs.customer.get('name', 'Customer')
-                lang = getattr(rs, 'language', 'english')
-                tools_to_call.append({"name": "get_voice_call", "args": {"msg": f"Namaste {customer_name}, your payment of ₹{rs.amount_inr:,.0f} failed. Please check the link we sent to retry in {lang}."}})
+                tools_to_call.append({"name": "get_voice_call", "args": {"msg": voice_msg}})
             else:
-                customer_name = rs.customer.get('name', 'there')
-                tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": f"Hi {customer_name}, your payment of ₹{rs.amount_inr:,.0f} failed. Please click the link to retry."}})
+                tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": wa_msg}})
                 
     elif rs.case_type == 'abandoned_checkout':
         tools_to_call.append({"name": "create_payment_link", "args": {}})
-        tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": "You left something in your cart! Complete your checkout now and enjoy a 10% discount. Click the payment link to complete your order."}})
+        tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": f"You left something in your cart! Complete your checkout now and enjoy a 10% discount. Click the payment link to complete your order. (Ref: #RNV-{ref_code})"}})
     elif rs.case_type == 'overdue_invoice':
-        tools_to_call.append({"name": "send_email_reminder", "args": {"urgency": "urgent"}})
+        tools_to_call.append({"name": "create_payment_link", "args": {}})
+        tools_to_call.append({"name": "send_email_reminder", "args": {"urgency": email_urg}})
+        tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": wa_msg}})
 
     if tools_to_call:
         langchain_tool_calls = []
@@ -160,25 +263,43 @@ async def decide_reply(state: AgentState):
         )
         return {"messages": [ai_msg]}
     
-    system_prompt = f"""You are a revenue recovery agent for Renvue.
+    system_prompt = f"""You are an empathetic, intelligent revenue recovery concierge for Renvue.
     
 === CURRENT CASE ===
 Customer     : {rs.customer.get('name', 'Unknown')}
-Amount owed  : ₹{rs.amount_inr}
+Amount owed  : ₹{rs.amount_inr:,.0f}
 Case type    : {rs.case_type}
 Attempt Count: {rs.attempt_count}
+Language     : {rs.language}
 Today's Date : {datetime.now().strftime('%Y-%m-%d')}
 Max Discount : {settings.max_discount}%
 Min Discount : {settings.min_discount}%
 
-=== RULES ===
-- If Attempt Count >= 3, you MUST call 'escalate_to_human' with a reason and stop. Do not schedule further follow-ups.
-- Check user sentiment with log_promise_to_pay. If sentiment is positive and they are willing to pay at a certain date, use log_promise_to_pay. Convert relative dates (like 'next monday') to YYYY-MM-DD.
-- If it's an abandoned checkout, you can negotiate a discount between the Min Discount and Max Discount. Start low and only increase if they push back.
-- If the customer asks a question or replies, use 'send_whatsapp_msg' to reply.
-- If this is a scheduled follow-up (the user hasn't replied), use 'send_whatsapp_msg' or 'send_email_reminder' to gently remind them to pay.
-- Do NOT call 'complete_case' unless the customer has explicitly paid or the issue is fully resolved.
-- Do NOT escalate unless they are very angry, they explicitly ask for a human, or Attempt Count >= 3.
+=== CORE RECOVERY RULES ===
+1. STOPPING RULE: If Attempt Count >= 3, you MUST call 'escalate_to_human' and STOP. No further outreach.
+2. PROMISE TO PAY: If the customer agrees to pay at a future date (e.g. 'on 18th', 'next monday', 'after salary'), extract the date (YYYY-MM-DD) and call 'log_promise_to_pay'.
+3. NEGOTIATION: If abandoned checkout and user hesitates, negotiate between {settings.min_discount}% and {settings.max_discount}% discount.
+4. OUTREACH: If customer asks a question or replies, use 'send_whatsapp_msg' to reply.
+5. ESCALATION: Do NOT escalate unless customer is hostile/angry, explicitly demands a human manager, or Attempt Count >= 3.
+
+=== B2B COMMERCIAL INVOICE RULES ===
+- If Case type is 'overdue_invoice': You are communicating with an Accounts Payable (AP) / Finance Manager. Maintain formal corporate finance decorum.
+- If they mention TDS deduction (Section 194C 2% or 194J 10%) or Form 16A, acknowledge it and request the TDS challan / certificate.
+- If they state 'cheque will be issued Friday' or 'payment runs on 10th', record this via 'log_promise_to_pay' and thank them for confirming the billing cycle.
+
+=== PAYMENT CONCIERGE & OBJECTION FAQ ===
+- Double-Debit / Money Deducted Fear: If customer states money was deducted from bank but order failed, reassure them warmly: 'If your bank debited the amount, RBI rules mandate an auto-reversal within T+2 to T+5 working days, or Razorpay will auto-reconcile within 2 hours. If not settled, please share the bank UTR so our finance desk can claim it immediately.'
+- UPI / Mandate Guidance: If customer asks how to approve UPI autopay, instruct them to open Google Pay / PhonePe / Paytm and tap 'Autopay' or 'Mandates' to authorize with UPI PIN.
+- Link Safety: If customer questions link legitimacy, assure them that the payment link is served on official Razorpay PCI-DSS Level 1 compliant infrastructure (rzp.io) with 128-bit bank-grade encryption.
+- Tone Progression:
+  * Attempt 1: Helpful concierge, assuming technical bank glitch.
+  * Attempt 2: Firm and urgent, warning of 24-hour service suspension.
+  * Attempt 3: Final notice before account transfer to human operations.
+
+=== OUTPUT FORMAT RULES ===
+- NEVER output placeholder template brackets like '[Service/Subscription]', '[Product Name]', '[Insert Link]', '[Your Company]'.
+- Refer to the transaction naturally as 'your order' or 'your subscription'.
+- Keep replies concise, professional, and ready for immediate customer delivery.
 """
     
     first_human_idx = next((i for i, m in enumerate(state["messages"]) if getattr(m, "type", "") == "human"), None)
@@ -190,24 +311,54 @@ Min Discount : {settings.min_discount}%
         
     clean_messages = [SystemMessage(content=system_prompt)] + recent_messages
     
-    llm = ChatMistralAI(model=settings.model, temperature=0, max_retries=3)
+    llm = ChatMistralAI(model=settings.model, temperature=0, max_retries=2, timeout=25)
     llm_with_tools = llm.bind_tools(tools)
     
-    await asyncio.sleep(random.uniform(0.5, 2.0))
+    await asyncio.sleep(random.uniform(0.3, 1.0))
     
-    for attempt in range(6):
+    for attempt in range(5):
         try:
             response = await llm_with_tools.ainvoke(clean_messages)
             return {"messages": [response]}
         except Exception as e:
-            if "429" in str(e) or "rate_limited" in str(e):
-                backoff = random.uniform(3.0, 8.0) * (attempt + 1)
-                print(f"[RATE LIMIT] Mistral 429 hit. Retrying in {backoff:.1f}s (Attempt {attempt+1}/6)...")
+            err_str = str(e).lower()
+            if "429" in err_str or "rate_limited" in err_str:
+                backoff = random.uniform(2.0, 5.0) * (attempt + 1)
+                print(f"[RATE LIMIT] Mistral 429 hit. Retrying in {backoff:.1f}s (Attempt {attempt+1}/5)...")
                 await asyncio.sleep(backoff)
+            elif "connecterror" in err_str or "name resolution" in err_str or "temporary failure" in err_str or "timeout" in err_str:
+                print(f"[LLM NETWORK WARNING] Mistral unreachable ({e}). Attempt {attempt+1}/5.")
+                if attempt < 2:
+                    await asyncio.sleep(2.0 * (attempt + 1))
+                else:
+                    # Graceful deterministic fallback so Taskiq background workers never crash on DNS drops
+                    print(f"[LLM RESILIENCE] Network/DNS connection failed. Falling back to deterministic escalation tone.")
+                    wa_msg, _, _ = get_escalation_tone(rs)
+                    fallback_ai = AIMessage(
+                        content="Deterministic recovery fallback applied due to upstream LLM connectivity timeout.",
+                        tool_calls=[{
+                            "name": "send_whatsapp_msg",
+                            "args": {"msg": wa_msg},
+                            "id": f"call_{uuid.uuid4().hex[:8]}",
+                            "type": "tool_call"
+                        }]
+                    )
+                    return {"messages": [fallback_ai]}
             else:
                 raise e
                 
-    raise Exception("Mistral API rate limit exceeded after maximum retries.")
+    # Final safety fallback
+    wa_msg, _, _ = get_escalation_tone(rs)
+    fallback_ai = AIMessage(
+        content="Deterministic recovery fallback applied after retries exhausted.",
+        tool_calls=[{
+            "name": "send_whatsapp_msg",
+            "args": {"msg": wa_msg},
+            "id": f"call_{uuid.uuid4().hex[:8]}",
+            "type": "tool_call"
+        }]
+    )
+    return {"messages": [fallback_ai]}
 
 
 execute = ToolNode(tools)

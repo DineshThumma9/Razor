@@ -59,6 +59,7 @@ async def list_cases(db: AsyncSession = Depends(get_db)):
             "first_seen_at": c.first_seen_at.isoformat() if c.first_seen_at else None,
             "next_retry_at": c.next_retry_at.isoformat() if c.next_retry_at else None,
             "language": c.language,
+            "audit_log": c.audit_log or [],
         }
         for c in sorted_cases
     ]

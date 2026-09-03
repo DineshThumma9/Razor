@@ -1,3 +1,4 @@
+from celery.app.builtins import logger
 import asyncio
 from typing import Optional
 
@@ -47,22 +48,33 @@ def get_redis_client():
 
 
 async def send_resend_email(
-    urgency: str, customer_name: str, customer_email: str, amount_inr: float
+    urgency: str, customer_name: str, customer_email: str, amount_inr: float, extra_context: Optional[dict] = None
 ):
-    html_content = email_messages.get(urgency, email_messages["gentle"]).format(
-        name=customer_name, amount=amount_inr
-    )
+    extra = extra_context or {}
+    template = email_messages.get(urgency, email_messages["gentle"])
+    try:
+        html_content = template.format(
+            name=customer_name,
+            amount=f"{amount_inr:,.0f}",
+            invoice_number=extra.get("invoice_number", "INV-2026-001"),
+            link=extra.get("link", f"https://rzp.io/l/inv-{customer_email.split('@')[0] if customer_email else 'corp'}")
+        )
+    except Exception:
+        html_content = template.format(name=customer_name, amount=f"{amount_inr:,.0f}")
 
     try:
-        response = ""
-        # response = await resend.Emails.send_async(
-        #     {
-        #         "from": "Acme <onboarding@resend.dev>",
-        #         "to": [customer_email],
-        #         "subject": f"Action Required: Payment Recovery ({urgency.capitalize()})",
-        #         "html": html_content,
-        #     }
-        # )
+        if settings.demo_mode:
+            logger.info(f"[DEMO SANDBOX] Email to {customer_email} ({urgency}): amount ₹{amount_inr:,.0f} (credits preserved)")
+            return True 
+
+        response = await resend.Emails.send_async(
+            {
+                "from": "Acme <onboarding@resend.dev>",
+                "to": [customer_email],
+                "subject": f"Action Required: Payment Recovery ({urgency.capitalize()})",
+                "html": html_content,
+            }
+        )
 
         print(f"    → Email sent successfully: {response}")
         return True
@@ -92,10 +104,10 @@ async def create_rzp_payment_link(
         )
 
     try:
-        response = await asyncio.to_thread(_create)
+        response = await asyncio.wait_for(asyncio.to_thread(_create), timeout=3.5)
         return response.get("short_url", "URL_NOT_FOUND")
     except Exception as e:
-        print(f"    → Razorpay API error: {e}")
+        print(f"    → Razorpay API error / timeout: {e}")
         return f"https://rzp.io/l/simulated-recovery-{customer_email.split('@')[0]}"
 
 
@@ -105,9 +117,9 @@ async def send_twilio_whatsapp(
     if not contact_number.startswith("+"):
         contact_number = "+91" + contact_number
 
-    if "9876543210" in contact_number or "1234567890" in contact_number:
-        print(f"    → [MOCK] Bypassing Twilio for dummy number: {contact_number}")
-        return "SMmocked" + "0" * 24
+    if "9876543210" in contact_number or "1234567890" in contact_number or settings.demo_mode:
+        print(f"    → [DEMO SANDBOX] WhatsApp to {contact_number}: '{msg[:75]}...' (Safe dispatch, credits preserved)")
+        return "SMdemo" + "0" * 26
 
     kwargs = {
         "from_": f"whatsapp:{settings.twilo_whatsapp_number}",
@@ -119,8 +131,8 @@ async def send_twilio_whatsapp(
 
     client = get_twilio_client()
     try:
-        res = 1
-        #  await client.messages.create_async(**kwargs)
+    
+        res = await client.messages.create_async(**kwargs)
         if isinstance(res, tuple):
             message = res[0]
         else:
@@ -146,6 +158,15 @@ async def generate_and_send_voice_note(contact_number: str, msg: str) -> str:
     print(f"  [CLIENT] Generating ElevenLabs Voice...")
     media_url = None
     try:
+
+
+        if settings.demo_mode:
+            print(f"  [CLIENT] Audio URL: {media_url}")
+            print(f"  [CLIENT] Dispatching Twilio WhatsApp Message...")
+            return "Mesage sent succefully"
+
+
+            
         audio_generator = elevenlabs_client.text_to_speech.convert(
             text=msg,
             voice_id="JBFqnCBsd6RMkjVDRZzb",

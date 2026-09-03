@@ -1,3 +1,4 @@
+from config.clients import send_twilio_whatsapp
 import asyncio
 from datetime import datetime, timedelta
 from langchain_core.messages import HumanMessage
@@ -48,7 +49,7 @@ async def handle_payment_event(payload: dict, db: AsyncSession) -> dict:
 
     # 1. Environment / Downtime Awareness
     if event.startswith("payment.downtime"):
-        return process_downtime_event(payload)
+        return await process_downtime_event(payload)
 
     # 2. Lifecycle Interception (Kill Switch for Success or Dispute)
     if event in SUCCESS_EVENTS or event == "payment.dispute.created":
@@ -185,15 +186,53 @@ async def handle_inbound_whatsapp(from_number: str, body: str, db: AsyncSession,
         )
         cases = result.scalars().all()
         
+
+        match_cases = []
         for case in cases:
             case_contact = case.customer.get("contact", "")
             if case_contact == contact_number or case_contact.endswith(contact_number):
-                active_case = case
-                break
-                    
-    if not active_case:
-        print(f"[INBOUND WHATSAPP] Ignored: No active case found for {contact_number if 'contact_number' in locals() else from_number}")
-        return {"status": "ignored", "reason": "No active case found for this number"}
+                match_cases.append(case)
+        
+        if not match_cases:
+            print(f"[INBOUND WHATSAPP] Ignored: No active case found for {contact_number if 'contact_number' in locals() else from_number}")
+            return {"status": "ignored", "reason": "No active case found for this number"}
+
+        active_case = None 
+
+        import re  
+        # 1. Match by reference code in body (e.g. #RNV-0665, RNV-0665, #0665, ticket: 0665, ref: 0665)
+        match = re.search(r"(?:#?RNV-|#|ticket:?\s*|ref:?\s*)([A-Za-z0-9]{4})\b", body, re.IGNORECASE)    
+        if match:
+            code = match.group(1).upper()
+            for c in match_cases:
+                if c.case_id[-4:].upper() == code:
+                    active_case = c
+                    break 
+
+        # 2. Match numeric selection from previous prompt (e.g. "1", "2", "3")
+        if not active_case and body.strip() in ["1", "2", "3"]:
+            idx = int(body.strip()) - 1
+            if 0 <= idx < len(match_cases):
+                active_case = match_cases[idx]
+
+        # 3. If there is only 1 active case for this customer, bind directly
+        if not active_case and len(match_cases) == 1:
+            active_case = match_cases[0]
+
+        # 4. If still ambiguous (> 1 open cases and no code matched)
+        if not active_case:
+            options = "\n".join([
+                f"{i+1}️⃣ ₹{c.amount_inr:,.0f} for {c.failure_reason or 'Order'} (Ref: #RNV-{c.case_id[-4:].upper()})"
+                for i, c in enumerate(match_cases[:3])
+            ])
+            customer_name = match_cases[0].customer.get('name', 'Customer')
+            prompt = (
+                f"Hi {customer_name}, we found multiple pending payments on file:\n\n"
+                f"{options}\n\n"
+                f"Please reply with 1 or 2 to choose which payment this message is regarding."
+            )
+            await send_twilio_whatsapp(contact_number, prompt)
+            return {"status": "disambiguation_prompt_sent", "active_cases_count": len(match_cases)}
         
     if body.strip().upper() == "STOP":
         print(f"[INBOUND WHATSAPP] Customer requested STOP. Closing case {active_case.case_id}.")

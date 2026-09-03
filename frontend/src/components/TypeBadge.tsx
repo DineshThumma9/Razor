@@ -7,7 +7,7 @@ const TYPE_STYLES: Record<string, string> = {
 
 export function TypeBadge({ type }: { type: string }) {
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${TYPE_STYLES[type] ?? 'bg-zinc-800 text-zinc-400 border-zinc-700'}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-${TYPE_STYLES[type] ?? 'bg-zinc-800 text-zinc-400 border-zinc-700'}`}>
       {type.replace(/_/g, ' ')}
     </span>
   )

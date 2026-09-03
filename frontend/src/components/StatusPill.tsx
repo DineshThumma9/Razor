@@ -13,7 +13,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 export function StatusPill({ status }: { status: string }) {
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_STYLES[status] ?? 'bg-zinc-800 text-zinc-400'}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium  text-${STATUS_STYLES[status] ?? 'bg-zinc-800 text-zinc-400'}`}>
       {STATUS_LABELS[status] ?? status}
     </span>
   )

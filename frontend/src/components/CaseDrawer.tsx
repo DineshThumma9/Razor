@@ -3,6 +3,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { fetchCase, approveEscalation, closeCase } from '../api'
+import { useCaseStore } from '../store/useCaseStore'
 import type { Case } from '../types'
 import { fmt, fmtTs } from '../utils/formatters'
 import { AuditTimeline } from './AuditTimeline'
@@ -38,15 +39,32 @@ export function CaseDrawer({
   const [closing, setClosing] = useState(false)
   const [copied, setCopied] = useState(false)
 
+  const storeCase = useCaseStore(state => state.cases.find(c => c.case_id === caseId))
+
+  useEffect(() => {
+    if (storeCase && open) {
+      setDetail(storeCase)
+    }
+  }, [storeCase, open])
+
   useEffect(() => {
     if (!caseId || !open) return
-    setLoading(true)
-    setDetail(null)
+    if (storeCase) {
+      setDetail(storeCase)
+      setLoading(false)
+    } else {
+      setLoading(true)
+      setDetail(null)
+    }
     setError(null)
     setCopied(false)
     fetchCase(caseId)
       .then(setDetail)
-      .catch((err) => setError(err?.message || 'Failed to load case details'))
+      .catch((err) => {
+        if (!storeCase) {
+          setError(err?.message || 'Failed to load case details')
+        }
+      })
       .finally(() => setLoading(false))
   }, [caseId, open])
 
@@ -147,14 +165,14 @@ export function CaseDrawer({
       {detail && !loading && (
         <div className="flex flex-col h-full overflow-hidden select-auto">
           {/* Top Bar: Case ID & Dismiss */}
-          <div className="px-8 py-3.5 border-b border-zinc-800/60 flex items-center justify-between shrink-0">
+          <div className="px-8 py-3.5  border-zinc-800/60 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
               <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
                 Case File
               </span>
               <button
                 onClick={handleCopyId}
-                className="inline-flex items-center gap-1.5 text-xs font-mono px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-zinc-200 transition-colors"
+                className="inline-flex items-center gap-1.5 text-xs font-sans px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-zinc-200 transition-colors"
                 title="Click to copy case ID"
               >
                 {copied ? (
@@ -179,13 +197,15 @@ export function CaseDrawer({
           </div>
 
           {/* Customer Profile & Amount (Clean, Uncluttered, No Gradient Soup) */}
-          <div className="px-8 py-5 border-b border-zinc-800/60 shrink-0 space-y-4">
+          <div className="px-8 py-5 border-zinc-800/60 shrink-0 space-y-4">
             <div className="flex items-start justify-between gap-6 flex-wrap">
               <div className="space-y-1 min-w-0">
                 <h2 className="text-2xl font-bold tracking-tight text-white">
+
                   {detail.customer.name || 'Unknown Customer'}
+
                 </h2>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-400">
+                <div className="flex flex-wrap mt-2 flex-col items-center gap-x-4 gap-y-2 text-xs text-zinc-400">
                   {detail.customer.email && (
                     <span className="flex items-center gap-1.5">
                       <Mail className="w-3.5 h-3.5 text-zinc-500" />
@@ -213,7 +233,7 @@ export function CaseDrawer({
             </div>
 
             {/* Clean Metadata Row (Properly Distributed Space, No Heavy Cards) */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-3 border-t border-zinc-800/40 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-3  border-zinc-800/40 text-xs">
               <div>
                 <span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-0.5">Status</span>
                 <span className="inline-flex items-center gap-1.5 font-medium text-zinc-200">
@@ -257,14 +277,15 @@ export function CaseDrawer({
                 </span>
               </div>
             </div>
+
           </div>
 
           {/* Subheader: Event Audit Trail */}
-          <div className="px-8 py-2.5 bg-zinc-950/30 border-b border-zinc-800/50 flex items-center justify-between text-xs shrink-0">
-            <span className="font-semibold uppercase tracking-wider text-zinc-400 text-[11px]">
-              Audit Trail & Communications
+          <div className="px-8 py-2.5 transparent border-zinc-800/50 flex items-center justify-between text-xs shrink-0">
+            <span className="font-semibold font-sans transparent uppercase tracking-wider text-zinc-400 text-[11px]">
+              Audit Trail 
             </span>
-            <span className="text-[11px] font-mono text-zinc-500">
+            <span className="text-[11px] font-sans text-zinc-500">
               {detail.audit_log?.length || 0} events
             </span>
           </div>
@@ -280,7 +301,7 @@ export function CaseDrawer({
           </ScrollArea>
 
           {/* Bottom Action Footer */}
-          <div className="p-4 border-t border-zinc-800 bg-[#0d1117] flex gap-3 shrink-0">
+          <div className="p-4  border-zinc-800 bg-[#0d1117] flex gap-3 shrink-0">
             {detail.recovery_status === 'escalated' ? (
               <>
                 <Button

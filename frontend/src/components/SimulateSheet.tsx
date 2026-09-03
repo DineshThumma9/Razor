@@ -12,7 +12,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Field, FieldContent, FieldLabel, FieldTitle } from "@/components/ui/field"
-import { fetchCase } from "../api"
+import { fetchCase, API_BASE_URL } from "../api"
+import { useCaseStore } from "../store/useCaseStore"
 import type { Case } from "../types"
 import { 
     Send, 
@@ -115,6 +116,19 @@ export function SimulateSheet() {
     const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
     const [replyText, setReplyText] = useState("")
 
+    // Live real-time sync with Zustand store when SSE events update active case
+    const storeCase = useCaseStore(state => state.cases.find(c => c.case_id === activeCaseId))
+
+    useEffect(() => {
+        if (storeCase && activeCaseId) {
+            setActiveCase(storeCase)
+            setChatHistory(buildChatFromAuditLog(storeCase))
+            if (['recovered', 'closed', 'escalated'].includes(storeCase.recovery_status)) {
+                setIsPolling(false)
+            }
+        }
+    }, [storeCase, activeCaseId])
+
     const handleCopyId = (e: React.MouseEvent) => {
         e.stopPropagation()
         if (!activeCaseId) return
@@ -176,7 +190,7 @@ export function SimulateSheet() {
         }
 
         try {
-            const res = await fetch("http://localhost:8000/api/fake-event", {
+            const res = await fetch(`${API_BASE_URL}/fake-event`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload)
@@ -236,7 +250,7 @@ export function SimulateSheet() {
         }
 
         try {
-            await fetch("http://localhost:8000/api/fake-action", {
+            await fetch(`${API_BASE_URL}/fake-action`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({

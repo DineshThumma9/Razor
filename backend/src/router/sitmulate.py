@@ -289,15 +289,15 @@ async def fake_action(action: CustomerAction, db=Depends(get_db)):
             await handle_payment_event(success_payload, db)
     elif action.actions == "ignore":
         state = await load_state(action.case_id, db)
-        if state and state.active_task_id:
-            from background.worker import revoke_active_task
-            await revoke_active_task(state.active_task_id)
-            state.active_task_id = None
-            from service.states import save_state
-            await save_state(state, db)
-        if broker.connection_pool is None:
-            await broker.startup()
-        await invoke_agent_task.kiq(action.case_id)
+        if state:
+            if state.active_task_id:
+                from background.worker import revoke_active_task
+                await revoke_active_task(state.active_task_id)
+                state.active_task_id = None
+                from service.states import save_state
+                await save_state(state, db)
+            from background.worker import invoke_agent_task
+            await invoke_agent_task(action.case_id)
     elif action.actions == "reply":
         # Route directly to the whatsapp handler with the explicit case_id
         state = await load_state(action.case_id, db)

@@ -59,9 +59,12 @@ soft_declines  =  {
 
 
 email_messages = {
-    'gentle': "Hi {name},<br><br>We noticed your recent payment of ₹{amount} failed. Please ensure your account has sufficient funds. We'll retry soon.<br><br>Thanks,<br>The Team",
-    'urgent': "Hi {name},<br><br>Your payment of ₹{amount} has failed again. To avoid service interruption, please update your payment method immediately.<br><br>Thanks,<br>The Team",
-    'final': "Dear {name},<br><br>This is our final notice regarding your outstanding payment of ₹{amount}. Your service will be paused if this is not resolved.<br><br>Thanks,<br>The Team"
+    'gentle': "Hi {name},<br><br>We noticed your recent payment of ₹{amount} didn't go through due to a temporary network glitch. Your order is reserved. Please click the link to retry.<br><br>Thanks,<br>The Team",
+    'urgent': "Hi {name},<br><br>URGENT: Your payment of ₹{amount} has failed again. To prevent service suspension within 24 hours, please update your payment method immediately.<br><br>Thanks,<br>The Team",
+    'final': "Dear {name},<br><br>FINAL NOTICE: This is our last automated reminder regarding your outstanding payment of ₹{amount}. Your account has been scheduled for administrative hold and transferred to support.<br><br>Thanks,<br>The Team",
+    'b2b_gentle': "Dear Accounts Payable ({name}),<br><br>This is a courtesy reminder that Invoice <strong>{invoice_number}</strong> for <strong>₹{amount}</strong> is past due under agreed Net-30 payment terms.<br><br>If TDS (Section 194C / 194J) has been deducted, please provide the Form 16A details and settle the net balance via NEFT or our corporate portal below.<br><br>Portal: {link}<br><br>Regards,<br>Finance & Receivables Team",
+    'b2b_urgent': "Attention: Accounts Payable & Finance Team ({name}),<br><br><strong>URGENT: Overdue Balance for Invoice {invoice_number} (₹{amount})</strong>.<br><br>This invoice is overdue. Continued non-settlement will result in vendor account hold and suspension of service deliverables within 48 hours.<br><br>Immediate Settlement: {link}<br><br>Regards,<br>Finance Operations",
+    'b2b_final': "FINAL NOTICE: Overdue Commercial Invoice {invoice_number} (₹{amount})<br><br>Dear {name},<br><br>Despite multiple notifications, the outstanding balance of ₹{amount} remains unsettled. This case has been escalated to senior management and finance operations. Services have been placed on hold.<br><br>To prevent formal legal/credit review, please clear the outstanding balance: {link}<br><br>Accounts Receivable Directorate"
 }
 
 

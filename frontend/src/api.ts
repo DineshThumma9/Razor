@@ -2,8 +2,10 @@ import axios from 'axios'
 import { z } from 'zod'
 import { CaseSchema, StatsSchema, type Case, type Stats } from './types'
 
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
+
 const http = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api',
+  baseURL: API_BASE_URL,
   timeout: 15000,
 })
 

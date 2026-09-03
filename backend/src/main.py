@@ -61,10 +61,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from service.broadcast import stream_router
+
 app.include_router(router)
 app.include_router(sim_router)
 app.include_router(api_router)
+app.include_router(stream_router)
 
 
-if __name__ == "main":
+if __name__ == "__main__":
     uvicorn.run("src.main:app", port=settings.port, reload=True, log_level="info")

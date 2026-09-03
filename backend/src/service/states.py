@@ -16,6 +16,12 @@ async def save_state(state: RecoveryState, db: AsyncSession):
     await db.execute(stmt)
     await db.commit()
 
+    try:
+        from service.broadcast import broadcast_case_update
+        await broadcast_case_update(state)
+    except Exception:
+        pass
+
 async def load_state(case_id: str, db: AsyncSession) -> Optional[RecoveryState]:
     """Load a RecoveryState by case_id."""
     return await db.get(RecoveryState, case_id)

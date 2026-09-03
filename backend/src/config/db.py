@@ -138,15 +138,3 @@ async def close_db():
         engine.dispose()
     if async_engine is not None:
         await async_engine.dispose()
-
-
-# engine = create_engine(settings.postgres_url)
-
-# def init_db():
-#     """Initialize the SQLModel database schema."""
-#     SQLModel.metadata.create_all(engine)
-
-
-# async def get_db():
-#     for db in next(db):
-#         yield db

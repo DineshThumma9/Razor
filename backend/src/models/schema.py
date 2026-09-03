@@ -55,6 +55,20 @@ class Notes(BaseModel):
     language: Optional[str] = None
     model_config = {"extra": "ignore"}
 
+class CardEntity(BaseModel):
+    id: Optional[str] = None
+    entity: str = "card"
+    name: Optional[str] = None
+    last4: Optional[str] = None
+    network: Optional[str] = None  # Visa, MasterCard, RuPay, Bajaj Finserv, Amex
+    type: Optional[str] = None     # debit, credit, prepaid
+    issuer: Optional[str] = None   # HDFC, ICICI, UTIB, SBIN, KKBK
+    international: Optional[bool] = False
+    emi: Optional[bool] = False
+    sub_type: Optional[str] = "consumer"
+    model_config = {"extra": "ignore"}
+
+
 class PaymentEntity(BaseModel):
     id: str
     order_id: Optional[str] = None
@@ -64,9 +78,12 @@ class PaymentEntity(BaseModel):
     captured: Optional[bool] = None
     amount_refunded: Optional[float] = None
     method: Optional[str] = None
+    card_id: Optional[str] = None
+    card: Optional[CardEntity] = None
     bank: Optional[str] = None
     vpa: Optional[str] = None
     wallet: Optional[str] = None
+    acquirer_data: Optional[Dict[str, Any]] = None
     error_code: Optional[str] = None
     error_description: Optional[str] = None
     error_source: Optional[str] = None
