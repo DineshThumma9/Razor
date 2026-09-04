@@ -83,7 +83,10 @@ from models.models import RecoveryState
 from service.states import load_state, save_state
 from agent.graph import build_agent
 from service.service import handle_payment_event, handle_inbound_whatsapp
-from batch_demo.payload_builder import build_rich_webhook_payload
+try:
+    from batch_demo.payload_builder import build_rich_webhook_payload
+except ImportError:
+    from payload_builder import build_rich_webhook_payload
 
 # Operational cost constants for Indian multi-channel stack (in INR)
 COST_WHATSAPP_MSG = 0.75     # Twilio / Meta WhatsApp utility template
@@ -120,6 +123,8 @@ def get_policy_rule_tag(scen: dict, final_state: RecoveryState) -> str:
 
 
 async def execute_scenario(scen: dict, index: int) -> dict:
+    
+    await asyncio.sleep(3)
     """Executes a single scenario through the complete recovery lifecycle."""
     case_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"batch-v1-{scen['id']}"))
     source_id = f"src_batch_{scen['id'].lower()}"
@@ -247,6 +252,9 @@ async def execute_scenario(scen: dict, index: int) -> dict:
             )
 
     # Step 2: Lifecycle Progression & Simulated Recovery Resolution
+    # Throttler gap (2 seconds): Allows the case to visibly populate the Active Processing Queue on the dashboard before resolution
+    await asyncio.sleep(2.0)
+
     sim = scen.get("simulation", {})
     action = sim.get("customer_action", "")
     discount_pct = float(sim.get("discount_applied", 0.0))

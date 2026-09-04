@@ -207,7 +207,8 @@ async def decide_event(state: AgentState):
             tools_to_call.append({"name": "create_payment_link", "args": {}})
             tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": f"Your auto-debit for ₹{rs.amount_inr:,.0f} failed. Under RBI rules, amounts over ₹15,000 require an OTP. Please click the link to authorize. (Ref: #RNV-{ref_code})"}})
         elif rs.decline_type == "soft":
-            tools_to_call.append({"name": "get_next_salary_date", "args": {}})
+            if (rs.attempt_count or 0) == 0:
+                tools_to_call.append({"name": "get_next_salary_date", "args": {}})
             tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": wa_msg}})
         else:
             tools_to_call.append({"name": "create_payment_link", "args": {}})

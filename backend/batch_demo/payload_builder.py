@@ -108,7 +108,7 @@ def build_rich_webhook_payload(scen: dict) -> dict:
         "card": card_entity,
         "bank": through if method in ["netbanking", "card"] else None,
         "wallet": through if method == "wallet" else None,
-        "vpa": f"{cust_name.lower().replace(' ', '')}@ok{through.lower()}" if method == "upi" else None,
+        "vpa": f"{cust_name.lower().replace(' ', '')}@ok{(through or 'axis').lower()}" if method == "upi" else None,
         "email": cust_email,
         "contact": f"+91{cust_phone}",
         "customer_id": f"cust_{suffix[:12]}",

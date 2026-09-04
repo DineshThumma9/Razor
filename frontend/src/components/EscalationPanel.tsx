@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { approveEscalation } from '../api'
 import type { Case } from '../types'
 import { fmt, relTime } from '../utils/formatters'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react'
 
 export function EscalationPanel({
   cases,
@@ -15,6 +15,7 @@ export function EscalationPanel({
   onApprove: () => void
 }) {
   const [approving, setApproving] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState(false)
 
   if (cases.length === 0) return null
 
@@ -29,16 +30,29 @@ export function EscalationPanel({
     }
   }
 
+  const visibleCases = expanded ? cases : cases.slice(0, 1)
+
   return (
-    <div className="mb-8 rounded-xl border border-red-500/20 bg-red-500/5 overflow-hidden">
-      <div className="px-5 py-3 border-b border-red-500/10 bg-red-500/10 flex items-center gap-2">
-        <AlertTriangle className="w-4 h-4 text-red-400" />
-        <h2 className="text-sm font-semibold text-red-400 tracking-wide uppercase">
-          Requires Human Approval ({cases.length})
-        </h2>
+    <div className="mb-8 rounded-xl border border-red-500/20 bg-red-500/5 overflow-hidden transition-all">
+      <div 
+        className="px-5 py-3 border-b border-red-500/10 bg-red-500/10 flex items-center justify-between cursor-pointer select-none"
+        onClick={() => cases.length > 1 && setExpanded(!expanded)}
+      >
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-red-400" />
+          <h2 className="text-sm font-semibold text-red-400 tracking-wide uppercase">
+            Requires Human Approval ({cases.length})
+          </h2>
+        </div>
+        {cases.length > 1 && (
+          <div className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 transition-colors">
+            <span>{expanded ? 'Show Less' : `+${cases.length - 1} more`}</span>
+            {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </div>
+        )}
       </div>
-      <div className="divide-y divide-red-500/10 max-h-75 overflow-y-auto">
-        {cases.map((c) => (
+      <div className="divide-y divide-red-500/10">
+        {visibleCases.map((c) => (
           <div
             key={c.case_id}
             onClick={() => onSelect(c.case_id)}

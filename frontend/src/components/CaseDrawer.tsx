@@ -213,7 +213,7 @@ export function CaseDrawer({
                     </span>
                   )}
                   {detail.customer.contact && (
-                    <span className="flex items-center gap-1.5 font-mono">
+                    <span className="flex items-center gap-1.5">
                       <Phone className="w-3.5 h-3.5 text-zinc-500" />
                       +91 {detail.customer.contact}
                     </span>
@@ -223,7 +223,7 @@ export function CaseDrawer({
 
               {/* Clean Amount */}
               <div className="text-right shrink-0">
-                <div className="text-2xl font-bold font-mono text-zinc-100 tracking-tight">
+                <div className="text-2xl font-bold text-zinc-100 tracking-tight">
                   ₹{fmt(detail.amount_inr)}
                 </div>
                 <div className="text-[11px] text-zinc-500 uppercase tracking-wider mt-0.5">
@@ -265,7 +265,7 @@ export function CaseDrawer({
 
               <div>
                 <span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-0.5">Next Contact</span>
-                <span className="font-mono text-zinc-300 block truncate">
+                <span className="font-medium text-zinc-300 block truncate">
                   {detail.next_retry_at ? fmtTs(detail.next_retry_at) : '—'}
                 </span>
               </div>

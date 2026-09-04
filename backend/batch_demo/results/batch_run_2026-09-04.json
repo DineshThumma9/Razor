@@ -1,0 +1,1583 @@
+{
+  "timestamp": "2026-09-03T19:03:01.800054+00:00",
+  "total_scenarios": 30,
+  "metrics": {
+    "total_at_risk_inr": 311187.0,
+    "total_recovered_inr": 255203.4,
+    "total_discounts_inr": 2484.6,
+    "total_operational_cost_inr": 8.0,
+    "net_roi_inr": 252710.8,
+    "recovered_count": 23,
+    "escalated_count": 3,
+    "closed_count": 4
+  },
+  "scenarios": [
+    {
+      "scenario_id": "SCEN-01",
+      "category": "Hard Decline",
+      "title": "Hard Decline - Expired Card",
+      "customer_name": "Aarav Sharma",
+      "amount_inr": 2499.0,
+      "recovered_amount": 2499.0,
+      "discount_inr": 0.0,
+      "operational_cost_inr": 0.0,
+      "net_roi_inr": 2499.0,
+      "status": "recovered",
+      "last_action": "send_whatsapp_msg",
+      "channels": [
+        "System/DB"
+      ],
+      "policy_guardrail": "Standard Bounded Recovery Policy",
+      "attempts": 1,
+      "duration_ms": 2219.2,
+      "audit_trail_length": 2,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "2499.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Aarav Sharma",
+            "email": "aarav.sharma@gmail.com",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-01 initialized: Hard Decline - Expired Card",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:30:16.983514"
+        },
+        {
+          "event_triggered": "create_payment_link",
+          "amount": "2499.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Aarav Sharma",
+            "email": "aarav.sharma@gmail.com",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-07T00:30:17.070802",
+          "message": "Secure Razorpay payment link generated: https://rzp.io/l/sim-aarav.sharma",
+          "channel": "link",
+          "direction": "outbound",
+          "created_at": "2026-09-04T00:30:17.100050"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-02",
+      "category": "Hard Decline",
+      "title": "Hard Decline - Card Lost or Stolen",
+      "customer_name": "Priya Nair",
+      "amount_inr": 5000.0,
+      "recovered_amount": 0.0,
+      "discount_inr": 0.0,
+      "operational_cost_inr": 0.75,
+      "net_roi_inr": -0.75,
+      "status": "closed",
+      "last_action": "send_whatsapp_msg",
+      "channels": [
+        "WhatsApp"
+      ],
+      "policy_guardrail": "Unresolvable Decline Circuit-Breaker",
+      "attempts": 0,
+      "duration_ms": 2070.0,
+      "audit_trail_length": 2,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "5000.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Priya Nair",
+            "email": "priya.nair@outlook.com",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-02 initialized: Hard Decline - Card Lost or Stolen",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:30:22.421404"
+        },
+        {
+          "event_triggered": "send_whatsapp_msg",
+          "amount": "5000.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Priya Nair",
+            "email": "priya.nair@outlook.com",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-07T00:30:22.454366",
+          "message": "Your payment was blocked by your bank for security reasons. Please try a different payment method or contact your bank. (Ref: #RNV-7CD6)",
+          "channel": "whatsapp",
+          "direction": "outbound",
+          "created_at": "2026-09-04T00:30:22.465043"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-03",
+      "category": "Hard Decline",
+      "title": "Hard Decline - Suspected Fraud",
+      "customer_name": "Rohan Deshmukh",
+      "amount_inr": 12500.0,
+      "recovered_amount": 0.0,
+      "discount_inr": 0.0,
+      "operational_cost_inr": 0.75,
+      "net_roi_inr": -0.75,
+      "status": "closed",
+      "last_action": "send_whatsapp_msg",
+      "channels": [
+        "WhatsApp"
+      ],
+      "policy_guardrail": "Unresolvable Decline Circuit-Breaker",
+      "attempts": 0,
+      "duration_ms": 2071.0,
+      "audit_trail_length": 2,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "12500.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Rohan Deshmukh",
+            "email": "rohan.deshmukh@gmail.com",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-03 initialized: Hard Decline - Suspected Fraud",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:30:27.744591"
+        },
+        {
+          "event_triggered": "send_whatsapp_msg",
+          "amount": "12500.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Rohan Deshmukh",
+            "email": "rohan.deshmukh@gmail.com",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-07T00:30:27.780208",
+          "message": "Your payment was blocked by your bank for security reasons. Please try a different payment method or contact your bank. (Ref: #RNV-D058)",
+          "channel": "whatsapp",
+          "direction": "outbound",
+          "created_at": "2026-09-04T00:30:27.792996"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-04",
+      "category": "Hard Decline",
+      "title": "Hard Decline - Invalid CVV on Card",
+      "customer_name": "Ananya Roy",
+      "amount_inr": 1299.0,
+      "recovered_amount": 1299.0,
+      "discount_inr": 0.0,
+      "operational_cost_inr": 0.0,
+      "net_roi_inr": 1299.0,
+      "status": "recovered",
+      "last_action": "send_whatsapp_msg",
+      "channels": [
+        "System/DB"
+      ],
+      "policy_guardrail": "Standard Bounded Recovery Policy",
+      "attempts": 1,
+      "duration_ms": 2104.7,
+      "audit_trail_length": 2,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "1299.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Ananya Roy",
+            "email": "ananya.roy@yahoo.com",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-04 initialized: Hard Decline - Invalid CVV on Card",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:30:33.070910"
+        },
+        {
+          "event_triggered": "create_payment_link",
+          "amount": "1299.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Ananya Roy",
+            "email": "ananya.roy@yahoo.com",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-07T00:30:33.105384",
+          "message": "Secure Razorpay payment link generated: https://rzp.io/l/sim-ananya.roy",
+          "channel": "link",
+          "direction": "outbound",
+          "created_at": "2026-09-04T00:30:33.118706"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-05",
+      "category": "Hard Decline",
+      "title": "Hard Decline - Issuer Do Not Honour",
+      "customer_name": "Karthik Pillai",
+      "amount_inr": 3999.0,
+      "recovered_amount": 3999.0,
+      "discount_inr": 0.0,
+      "operational_cost_inr": 0.0,
+      "net_roi_inr": 3999.0,
+      "status": "recovered",
+      "last_action": "send_whatsapp_msg",
+      "channels": [
+        "System/DB"
+      ],
+      "policy_guardrail": "Standard Bounded Recovery Policy",
+      "attempts": 1,
+      "duration_ms": 2105.3,
+      "audit_trail_length": 2,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "3999.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Karthik Pillai",
+            "email": "karthik.pillai@gmail.com",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-05 initialized: Hard Decline - Issuer Do Not Honour",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:30:38.411274"
+        },
+        {
+          "event_triggered": "create_payment_link",
+          "amount": "3999.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Karthik Pillai",
+            "email": "karthik.pillai@gmail.com",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-07T00:30:38.448234",
+          "message": "Secure Razorpay payment link generated: https://rzp.io/l/sim-karthik.pillai",
+          "channel": "link",
+          "direction": "outbound",
+          "created_at": "2026-09-04T00:30:38.472278"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-06",
+      "category": "Hard Decline",
+      "title": "Hard Decline - Account Frozen / Legal Hold",
+      "customer_name": "Vikram Sethi",
+      "amount_inr": 8400.0,
+      "recovered_amount": 0.0,
+      "discount_inr": 0.0,
+      "operational_cost_inr": 0.75,
+      "net_roi_inr": -0.75,
+      "status": "closed",
+      "last_action": "send_whatsapp_msg",
+      "channels": [
+        "WhatsApp"
+      ],
+      "policy_guardrail": "Unresolvable Decline Circuit-Breaker",
+      "attempts": 0,
+      "duration_ms": 2086.9,
+      "audit_trail_length": 2,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "8400.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Vikram Sethi",
+            "email": "vikram.sethi@gmail.com",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-06 initialized: Hard Decline - Account Frozen / Legal Hold",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:30:43.721453"
+        },
+        {
+          "event_triggered": "send_whatsapp_msg",
+          "amount": "8400.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Vikram Sethi",
+            "email": "vikram.sethi@gmail.com",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-07T00:30:43.754773",
+          "message": "Your payment was blocked by your bank for security reasons. Please try a different payment method or contact your bank. (Ref: #RNV-767F)",
+          "channel": "whatsapp",
+          "direction": "outbound",
+          "created_at": "2026-09-04T00:30:43.772251"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-07",
+      "category": "Soft Decline",
+      "title": "Soft Decline - Insufficient Funds (Salary Milestone)",
+      "customer_name": "Deepak Patel",
+      "amount_inr": 1999.0,
+      "recovered_amount": 1999.0,
+      "discount_inr": 0.0,
+      "operational_cost_inr": 0.05,
+      "net_roi_inr": 1998.95,
+      "status": "recovered",
+      "last_action": "send_email_reminder",
+      "channels": [
+        "Email"
+      ],
+      "policy_guardrail": "Salary Milestone Backoff Policy",
+      "attempts": 1,
+      "duration_ms": 2120.1,
+      "audit_trail_length": 2,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "1999.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Deepak Patel",
+            "email": "deepak.patel@gmail.com",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-07 initialized: Soft Decline - Insufficient Funds (Salary Milestone)",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:30:49.045771"
+        },
+        {
+          "event_triggered": "send_email_reminder",
+          "amount": "1999.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Deepak Patel",
+            "email": "deepak.patel@gmail.com",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-07T00:30:49.084121",
+          "message": "Reminder (gentle): Payment of \u20b91,999 for your order is due. Please complete payment to avoid service interruption.",
+          "channel": "email",
+          "direction": "outbound",
+          "created_at": "2026-09-04T00:30:49.107641"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-08",
+      "category": "Soft Decline",
+      "title": "Soft Decline - High Ticket (> \u20b95,000) Multilingual Alert",
+      "customer_name": "Rajesh Gupta",
+      "amount_inr": 7500.0,
+      "recovered_amount": 7500.0,
+      "discount_inr": 0.0,
+      "operational_cost_inr": 0.0,
+      "net_roi_inr": 7500.0,
+      "status": "recovered",
+      "last_action": "send_whatsapp_msg",
+      "channels": [
+        "System/DB"
+      ],
+      "policy_guardrail": "Salary Milestone Backoff Policy",
+      "attempts": 1,
+      "duration_ms": 2114.9,
+      "audit_trail_length": 2,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "7500.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Rajesh Gupta",
+            "email": "rajesh.gupta@gmail.com",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-08 initialized: Soft Decline - High Ticket (> \u20b95,000) Multilingual Alert",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:30:54.371111"
+        },
+        {
+          "event_triggered": "get_next_salary_date",
+          "amount": "7500.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Rajesh Gupta",
+            "email": "rajesh.gupta@gmail.com",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-15T10:00:00",
+          "message": "Upcoming salary dates: 2026-09-15, 2026-09-25. Auto-scheduled next follow-up for Sep 15, 2026.",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:30:54.426962"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-09",
+      "category": "Soft Decline",
+      "title": "Soft Decline - Daily UPI Transaction Limit Exceeded",
+      "customer_name": "Neha Verma",
+      "amount_inr": 4200.0,
+      "recovered_amount": 4200.0,
+      "discount_inr": 0.0,
+      "operational_cost_inr": 0.0,
+      "net_roi_inr": 4200.0,
+      "status": "recovered",
+      "last_action": "send_whatsapp_msg",
+      "channels": [
+        "System/DB"
+      ],
+      "policy_guardrail": "Salary Milestone Backoff Policy",
+      "attempts": 1,
+      "duration_ms": 2099.5,
+      "audit_trail_length": 2,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "4200.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Neha Verma",
+            "email": "neha.verma@gmail.com",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-09 initialized: Soft Decline - Daily UPI Transaction Limit Exceeded",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:30:59.695595"
+        },
+        {
+          "event_triggered": "get_next_salary_date",
+          "amount": "4200.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Neha Verma",
+            "email": "neha.verma@gmail.com",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-15T10:00:00",
+          "message": "Upcoming salary dates: 2026-09-15, 2026-09-25. Auto-scheduled next follow-up for Sep 15, 2026.",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:30:59.756848"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-10",
+      "category": "Soft Decline",
+      "title": "Soft Decline - Banking Switch Momentary Timeout",
+      "customer_name": "Siddharth Sen",
+      "amount_inr": 2100.0,
+      "recovered_amount": 2100.0,
+      "discount_inr": 0.0,
+      "operational_cost_inr": 0.0,
+      "net_roi_inr": 2100.0,
+      "status": "recovered",
+      "last_action": "send_whatsapp_msg",
+      "channels": [
+        "System/DB"
+      ],
+      "policy_guardrail": "Salary Milestone Backoff Policy",
+      "attempts": 1,
+      "duration_ms": 2180.5,
+      "audit_trail_length": 2,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "2100.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Siddharth Sen",
+            "email": "siddharth.sen@gmail.com",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-10 initialized: Soft Decline - Banking Switch Momentary Timeout",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:31:05.020221"
+        },
+        {
+          "event_triggered": "get_next_salary_date",
+          "amount": "2100.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Siddharth Sen",
+            "email": "siddharth.sen@gmail.com",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-15T10:00:00",
+          "message": "Upcoming salary dates: 2026-09-15, 2026-09-25. Auto-scheduled next follow-up for Sep 15, 2026.",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:31:05.071019"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-11",
+      "category": "Soft Decline",
+      "title": "Soft Decline - Low Ticket Micro-order",
+      "customer_name": "Tanvi Joshi",
+      "amount_inr": 499.0,
+      "recovered_amount": 499.0,
+      "discount_inr": 0.0,
+      "operational_cost_inr": 0.0,
+      "net_roi_inr": 499.0,
+      "status": "recovered",
+      "last_action": "send_whatsapp_msg",
+      "channels": [
+        "System/DB"
+      ],
+      "policy_guardrail": "Salary Milestone Backoff Policy",
+      "attempts": 1,
+      "duration_ms": 2103.8,
+      "audit_trail_length": 2,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "499.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Tanvi Joshi",
+            "email": "tanvi.joshi@gmail.com",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-11 initialized: Soft Decline - Low Ticket Micro-order",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:31:10.550545"
+        },
+        {
+          "event_triggered": "get_next_salary_date",
+          "amount": "499.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Tanvi Joshi",
+            "email": "tanvi.joshi@gmail.com",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-15T10:00:00",
+          "message": "Upcoming salary dates: 2026-09-15, 2026-09-25. Auto-scheduled next follow-up for Sep 15, 2026.",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:31:10.611791"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-12",
+      "category": "Soft Decline",
+      "title": "Soft Decline - 3DS OTP Authentication Drop-off",
+      "customer_name": "Manish Reddy",
+      "amount_inr": 1499.0,
+      "recovered_amount": 1499.0,
+      "discount_inr": 0.0,
+      "operational_cost_inr": 0.0,
+      "net_roi_inr": 1499.0,
+      "status": "recovered",
+      "last_action": "send_whatsapp_msg",
+      "channels": [
+        "System/DB"
+      ],
+      "policy_guardrail": "Salary Milestone Backoff Policy",
+      "attempts": 1,
+      "duration_ms": 2110.1,
+      "audit_trail_length": 2,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "1499.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Manish Reddy",
+            "email": "manish.reddy@gmail.com",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-12 initialized: Soft Decline - 3DS OTP Authentication Drop-off",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:31:15.837857"
+        },
+        {
+          "event_triggered": "get_next_salary_date",
+          "amount": "1499.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Manish Reddy",
+            "email": "manish.reddy@gmail.com",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-15T10:00:00",
+          "message": "Upcoming salary dates: 2026-09-15, 2026-09-25. Auto-scheduled next follow-up for Sep 15, 2026.",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:31:15.895253"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-13",
+      "category": "RBI e-Mandate > 15k",
+      "title": "RBI e-Mandate > \u20b915,000 - Executive Coaching Subscription",
+      "customer_name": "Sameer Kulkarni",
+      "amount_inr": 18500.0,
+      "recovered_amount": 18500.0,
+      "discount_inr": 0.0,
+      "operational_cost_inr": 0.0,
+      "net_roi_inr": 18500.0,
+      "status": "recovered",
+      "last_action": "send_whatsapp_msg",
+      "channels": [
+        "System/DB"
+      ],
+      "policy_guardrail": "RBI 2026 E-Mandate AFA (OTP) Rule",
+      "attempts": 1,
+      "duration_ms": 2127.6,
+      "audit_trail_length": 2,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "18500.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Sameer Kulkarni",
+            "email": "sameer.kulkarni@gmail.com",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-13 initialized: RBI e-Mandate > \u20b915,000 - Executive Coaching Subscription",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:31:21.194355"
+        },
+        {
+          "event_triggered": "create_payment_link",
+          "amount": "18500.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Sameer Kulkarni",
+            "email": "sameer.kulkarni@gmail.com",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-07T00:31:21.230071",
+          "message": "Secure Razorpay payment link generated: https://rzp.io/l/sim-sameer.kulkarni",
+          "channel": "link",
+          "direction": "outbound",
+          "created_at": "2026-09-04T00:31:21.246811"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-14",
+      "category": "RBI e-Mandate > 15k",
+      "title": "RBI e-Mandate > \u20b915,000 - SaaS Enterprise Annual Tier",
+      "customer_name": "Preeti Mehra",
+      "amount_inr": 24000.0,
+      "recovered_amount": 24000.0,
+      "discount_inr": 0.0,
+      "operational_cost_inr": 0.0,
+      "net_roi_inr": 24000.0,
+      "status": "recovered",
+      "last_action": "send_whatsapp_msg",
+      "channels": [
+        "System/DB"
+      ],
+      "policy_guardrail": "RBI 2026 E-Mandate AFA (OTP) Rule",
+      "attempts": 1,
+      "duration_ms": 2105.0,
+      "audit_trail_length": 2,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "24000.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Preeti Mehra",
+            "email": "preeti.mehra@enterprise.in",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-14 initialized: RBI e-Mandate > \u20b915,000 - SaaS Enterprise Annual Tier",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:31:26.523936"
+        },
+        {
+          "event_triggered": "create_payment_link",
+          "amount": "24000.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Preeti Mehra",
+            "email": "preeti.mehra@enterprise.in",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-07T00:31:26.560170",
+          "message": "Secure Razorpay payment link generated: https://rzp.io/l/sim-preeti.mehra",
+          "channel": "link",
+          "direction": "outbound",
+          "created_at": "2026-09-04T00:31:26.577812"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-15",
+      "category": "RBI e-Mandate < 15k",
+      "title": "RBI e-Mandate < \u20b915,000 - Frictionless Pro Plan",
+      "customer_name": "Kavita Rao",
+      "amount_inr": 999.0,
+      "recovered_amount": 999.0,
+      "discount_inr": 0.0,
+      "operational_cost_inr": 0.0,
+      "net_roi_inr": 999.0,
+      "status": "recovered",
+      "last_action": "send_whatsapp_msg",
+      "channels": [
+        "System/DB"
+      ],
+      "policy_guardrail": "Standard Bounded Recovery Policy",
+      "attempts": 1,
+      "duration_ms": 2099.2,
+      "audit_trail_length": 2,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "999.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Kavita Rao",
+            "email": "kavita.rao@gmail.com",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-15 initialized: RBI e-Mandate < \u20b915,000 - Frictionless Pro Plan",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:31:31.847480"
+        },
+        {
+          "event_triggered": "get_next_salary_date",
+          "amount": "999.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Kavita Rao",
+            "email": "kavita.rao@gmail.com",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-15T10:00:00",
+          "message": "Upcoming salary dates: 2026-09-15, 2026-09-25. Auto-scheduled next follow-up for Sep 15, 2026.",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:31:31.900914"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-16",
+      "category": "Subscription Cancelled",
+      "title": "Subscription Cancelled with Installment Due",
+      "customer_name": "Alok Mathur",
+      "amount_inr": 6000.0,
+      "recovered_amount": 6000.0,
+      "discount_inr": 0.0,
+      "operational_cost_inr": 0.75,
+      "net_roi_inr": 5999.25,
+      "status": "recovered",
+      "last_action": "send_whatsapp_msg",
+      "channels": [
+        "WhatsApp"
+      ],
+      "policy_guardrail": "Standard Bounded Recovery Policy",
+      "attempts": 1,
+      "duration_ms": 2109.5,
+      "audit_trail_length": 2,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "6000.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Alok Mathur",
+            "email": "alok.mathur@gmail.com",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-16 initialized: Subscription Cancelled with Installment Due",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:31:37.378570"
+        },
+        {
+          "event_triggered": "send_whatsapp_msg",
+          "amount": "6000.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Alok Mathur",
+            "email": "alok.mathur@gmail.com",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-07T00:31:37.431596",
+          "message": "Your auto-pay was cancelled, but your \u20b96,000 instalment is still due. Would you like to settle manually? (Ref: #RNV-C7B8)",
+          "channel": "whatsapp",
+          "direction": "outbound",
+          "created_at": "2026-09-04T00:31:37.440260"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-17",
+      "category": "Halted Subscription",
+      "title": "Halted Subscription - Card Reissuance / Mandate Break",
+      "customer_name": "Bhavna Swaminathan",
+      "amount_inr": 1999.0,
+      "recovered_amount": 1999.0,
+      "discount_inr": 0.0,
+      "operational_cost_inr": 0.0,
+      "net_roi_inr": 1999.0,
+      "status": "recovered",
+      "last_action": "send_whatsapp_msg",
+      "channels": [
+        "System/DB"
+      ],
+      "policy_guardrail": "Standard Bounded Recovery Policy",
+      "attempts": 1,
+      "duration_ms": 2169.6,
+      "audit_trail_length": 2,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "1999.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Bhavna Swaminathan",
+            "email": "bhavna.s@gmail.com",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-17 initialized: Halted Subscription - Card Reissuance / Mandate Break",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:31:42.703173"
+        },
+        {
+          "event_triggered": "create_payment_link",
+          "amount": "1999.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Bhavna Swaminathan",
+            "email": "bhavna.s@gmail.com",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-07T00:31:42.757994",
+          "message": "Secure Razorpay payment link generated: https://rzp.io/l/sim-bhavna.s",
+          "channel": "link",
+          "direction": "outbound",
+          "created_at": "2026-09-04T00:31:42.783551"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-18",
+      "category": "RBI e-Mandate Exception",
+      "title": "RBI e-Mandate \u20b91 Lakh Limit - Health Insurance Premium",
+      "customer_name": "Dr. Sunil Iyengar",
+      "amount_inr": 35000.0,
+      "recovered_amount": 35000.0,
+      "discount_inr": 0.0,
+      "operational_cost_inr": 0.0,
+      "net_roi_inr": 35000.0,
+      "status": "recovered",
+      "last_action": "send_whatsapp_msg",
+      "channels": [
+        "System/DB"
+      ],
+      "policy_guardrail": "RBI 2026 E-Mandate AFA (OTP) Rule",
+      "attempts": 1,
+      "duration_ms": 2235.7,
+      "audit_trail_length": 2,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "35000.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Dr. Sunil Iyengar",
+            "email": "sunil.iyengar@medcare.org",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-18 initialized: RBI e-Mandate \u20b91 Lakh Limit - Health Insurance Premium",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:31:48.029887"
+        },
+        {
+          "event_triggered": "create_payment_link",
+          "amount": "35000.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Dr. Sunil Iyengar",
+            "email": "sunil.iyengar@medcare.org",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-07T00:31:48.078190",
+          "message": "Secure Razorpay payment link generated: https://rzp.io/l/sim-sunil.iyengar",
+          "channel": "link",
+          "direction": "outbound",
+          "created_at": "2026-09-04T00:31:48.137335"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-19",
+      "category": "Abandoned Checkout",
+      "title": "Abandoned Checkout - Dropped at OTP Stage",
+      "customer_name": "Pooja Hegde",
+      "amount_inr": 1899.0,
+      "recovered_amount": 1709.1,
+      "discount_inr": 189.9,
+      "operational_cost_inr": 0.75,
+      "net_roi_inr": 1518.45,
+      "status": "recovered",
+      "last_action": "send_whatsapp_msg",
+      "channels": [
+        "WhatsApp"
+      ],
+      "policy_guardrail": "Bounded Concession Policy (5-30%)",
+      "attempts": 1,
+      "duration_ms": 2125.5,
+      "audit_trail_length": 2,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "1899.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Pooja Hegde",
+            "email": "pooja.hegde@gmail.com",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-19 initialized: Abandoned Checkout - Dropped at OTP Stage",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:31:53.558358"
+        },
+        {
+          "event_triggered": "send_whatsapp_msg",
+          "amount": "1899.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Pooja Hegde",
+            "email": "pooja.hegde@gmail.com",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-07T00:31:53.595098",
+          "message": "You left something in your cart! Complete your checkout now and enjoy a 10% discount. Click the payment link to complete your order. (Ref: #RNV-7ECE)",
+          "channel": "whatsapp",
+          "direction": "outbound",
+          "created_at": "2026-09-04T00:31:53.623095"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-20",
+      "category": "Abandoned Checkout",
+      "title": "Abandoned Checkout - Dropped at Method Selection",
+      "customer_name": "Varun Tej",
+      "amount_inr": 3499.0,
+      "recovered_amount": 3149.1,
+      "discount_inr": 349.9,
+      "operational_cost_inr": 0.75,
+      "net_roi_inr": 2798.45,
+      "status": "recovered",
+      "last_action": "send_whatsapp_msg",
+      "channels": [
+        "WhatsApp"
+      ],
+      "policy_guardrail": "Bounded Concession Policy (5-30%)",
+      "attempts": 1,
+      "duration_ms": 2308.3,
+      "audit_trail_length": 2,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "3499.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Varun Tej",
+            "email": "varun.tej@gmail.com",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-20 initialized: Abandoned Checkout - Dropped at Method Selection",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:31:58.883658"
+        },
+        {
+          "event_triggered": "send_whatsapp_msg",
+          "amount": "3499.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Varun Tej",
+            "email": "varun.tej@gmail.com",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-07T00:31:58.937705",
+          "message": "You left something in your cart! Complete your checkout now and enjoy a 10% discount. Click the payment link to complete your order. (Ref: #RNV-307A)",
+          "channel": "whatsapp",
+          "direction": "outbound",
+          "created_at": "2026-09-04T00:31:58.974894"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-21",
+      "category": "Abandoned Checkout",
+      "title": "Abandoned Checkout - High Value Electronics Cart",
+      "customer_name": "Nikhil Agarwal",
+      "amount_inr": 11999.0,
+      "recovered_amount": 10799.1,
+      "discount_inr": 1199.9,
+      "operational_cost_inr": 0.0,
+      "net_roi_inr": 9599.2,
+      "status": "recovered",
+      "last_action": "send_whatsapp_msg",
+      "channels": [
+        "System/DB"
+      ],
+      "policy_guardrail": "Bounded Concession Policy (5-30%)",
+      "attempts": 1,
+      "duration_ms": 2159.1,
+      "audit_trail_length": 2,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "11999.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Nikhil Agarwal",
+            "email": "nikhil.agarwal@gmail.com",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-21 initialized: Abandoned Checkout - High Value Electronics Cart",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:32:04.412023"
+        },
+        {
+          "event_triggered": "create_payment_link",
+          "amount": "11999.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Nikhil Agarwal",
+            "email": "nikhil.agarwal@gmail.com",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-07T00:32:04.446830",
+          "message": "Secure Razorpay payment link generated: https://rzp.io/l/sim-nikhil.agarwal",
+          "channel": "link",
+          "direction": "outbound",
+          "created_at": "2026-09-04T00:32:04.464598"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-22",
+      "category": "Abandoned Checkout",
+      "title": "Abandoned Checkout - Low Ticket Quick Win",
+      "customer_name": "Sneha Ghosh",
+      "amount_inr": 699.0,
+      "recovered_amount": 629.1,
+      "discount_inr": 69.9,
+      "operational_cost_inr": 0.0,
+      "net_roi_inr": 559.2,
+      "status": "recovered",
+      "last_action": "send_whatsapp_msg",
+      "channels": [
+        "System/DB"
+      ],
+      "policy_guardrail": "Bounded Concession Policy (5-30%)",
+      "attempts": 1,
+      "duration_ms": 2100.7,
+      "audit_trail_length": 2,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "699.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Sneha Ghosh",
+            "email": "sneha.ghosh@gmail.com",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-22 initialized: Abandoned Checkout - Low Ticket Quick Win",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:32:09.837278"
+        },
+        {
+          "event_triggered": "create_payment_link",
+          "amount": "699.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Sneha Ghosh",
+            "email": "sneha.ghosh@gmail.com",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-07T00:32:09.877829",
+          "message": "Secure Razorpay payment link generated: https://rzp.io/l/sim-sneha.ghosh",
+          "channel": "link",
+          "direction": "outbound",
+          "created_at": "2026-09-04T00:32:09.899008"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-23",
+      "category": "Abandoned Checkout",
+      "title": "Abandoned Checkout - Inbound Customer Negotiation",
+      "customer_name": "Aditya Roy",
+      "amount_inr": 4500.0,
+      "recovered_amount": 3825.0,
+      "discount_inr": 675.0,
+      "operational_cost_inr": 1.65,
+      "net_roi_inr": 3148.35,
+      "status": "recovered",
+      "last_action": "send_whatsapp_msg",
+      "channels": [
+        "WhatsApp"
+      ],
+      "policy_guardrail": "Bounded Concession Policy (5-30%)",
+      "attempts": 1,
+      "duration_ms": 4254.8,
+      "audit_trail_length": 3,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "4500.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Aditya Roy",
+            "email": "aditya.roy@gmail.com",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-23 initialized: Abandoned Checkout - Inbound Customer Negotiation",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:32:15.126574"
+        },
+        {
+          "event_triggered": "customer_reply",
+          "amount": "4500.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Aditya Roy",
+            "email": "aditya.roy@gmail.com",
+            "contact": "9876543210"
+          },
+          "next_contact": null,
+          "message": "Is there any extra discount? It feels too expensive.",
+          "channel": "whatsapp",
+          "direction": "inbound",
+          "created_at": "2026-09-04T00:32:15.159337"
+        },
+        {
+          "event_triggered": "send_whatsapp_msg",
+          "amount": "4500.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Aditya Roy",
+            "email": "aditya.roy@gmail.com",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-07T00:32:17.324008",
+          "message": "Hi Aditya, we understand your concern about the cost. Unfortunately, there are no additional discounts available for this order at the moment. However, we truly value you as a customer and want to ensure you get the best experience. Could you please share what specifically feels expensive? This will help us assist you better. Thank you!",
+          "channel": "whatsapp",
+          "direction": "outbound",
+          "created_at": "2026-09-04T00:32:17.333185"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-24",
+      "category": "Abandoned Checkout",
+      "title": "Abandoned Checkout - Unresponsive Customer (Stopping Rule)",
+      "customer_name": "Meera Nambiar",
+      "amount_inr": 2199.0,
+      "recovered_amount": 0.0,
+      "discount_inr": 0.0,
+      "operational_cost_inr": 0.0,
+      "net_roi_inr": 0.0,
+      "status": "escalated",
+      "last_action": "escalate_to_human",
+      "channels": [
+        "System/DB"
+      ],
+      "policy_guardrail": "Max 3-Touch Stopping Rule",
+      "attempts": 3,
+      "duration_ms": 2075.3,
+      "audit_trail_length": 2,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "2199.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Meera Nambiar",
+            "email": "meera.nambiar@gmail.com",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-24 initialized: Abandoned Checkout - Unresponsive Customer (Stopping Rule)",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:32:22.543894"
+        },
+        {
+          "event_triggered": "escalate_to_human",
+          "amount": "2199.0",
+          "recovery_status": "escalated",
+          "customer": {
+            "name": "Meera Nambiar",
+            "email": "meera.nambiar@gmail.com",
+            "contact": "9876543210"
+          },
+          "next_contact": null,
+          "message": "Escalated to human support. Reason: Max attempts (3) reached. Context: Name=Meera Nambiar, Amount=\u20b92,199, Case=abandoned_checkout, Last Action=None",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:32:22.598471"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-25",
+      "category": "B2B Overdue Invoice",
+      "title": "B2B Overdue Invoice - 14 Days Overdue Urgent Chaser",
+      "customer_name": "Apex Logistics Pvt Ltd",
+      "amount_inr": 25000.0,
+      "recovered_amount": 25000.0,
+      "discount_inr": 0.0,
+      "operational_cost_inr": 0.0,
+      "net_roi_inr": 25000.0,
+      "status": "recovered",
+      "last_action": "send_whatsapp_msg",
+      "channels": [
+        "System/DB"
+      ],
+      "policy_guardrail": "Standard Bounded Recovery Policy",
+      "attempts": 1,
+      "duration_ms": 2191.8,
+      "audit_trail_length": 2,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "25000.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Apex Logistics Pvt Ltd",
+            "email": "accounts@apexlogistics.in",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-25 initialized: B2B Overdue Invoice - 14 Days Overdue Urgent Chaser",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:32:27.856242"
+        },
+        {
+          "event_triggered": "create_payment_link",
+          "amount": "25000.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Apex Logistics Pvt Ltd",
+            "email": "accounts@apexlogistics.in",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-07T00:32:27.934654",
+          "message": "Secure Razorpay payment link generated: https://rzp.io/l/sim-accounts",
+          "channel": "link",
+          "direction": "outbound",
+          "created_at": "2026-09-04T00:32:27.969134"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-26",
+      "category": "B2B Overdue Invoice",
+      "title": "B2B Overdue Invoice - Partial Payment Received (\u20b930k of \u20b960k)",
+      "customer_name": "Zion Tech Labs",
+      "amount_inr": 60000.0,
+      "recovered_amount": 60000.0,
+      "discount_inr": 0.0,
+      "operational_cost_inr": 0.0,
+      "net_roi_inr": 60000.0,
+      "status": "recovered",
+      "last_action": "audit_complete",
+      "channels": [
+        "System/DB"
+      ],
+      "policy_guardrail": "Standard Bounded Recovery Policy",
+      "attempts": 0,
+      "duration_ms": 2055.4,
+      "audit_trail_length": 2,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "60000.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Zion Tech Labs",
+            "email": "billing@ziontech.io",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-26 initialized: B2B Overdue Invoice - Partial Payment Received (\u20b930k of \u20b960k)",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:32:33.289674"
+        },
+        {
+          "event_triggered": "partial_payment_received",
+          "amount": "30000.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Zion Tech Labs",
+            "email": "billing@ziontech.io",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-07T00:32:33.316714"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-27",
+      "category": "Conversational PTP",
+      "title": "B2B Overdue Invoice - Promise-to-Pay (PTP) Logging",
+      "customer_name": "Kiran Rao",
+      "amount_inr": 38000.0,
+      "recovered_amount": 38000.0,
+      "discount_inr": 0.0,
+      "operational_cost_inr": 0.9,
+      "net_roi_inr": 37999.1,
+      "status": "recovered",
+      "last_action": "audit_complete",
+      "channels": [
+        "WhatsApp"
+      ],
+      "policy_guardrail": "Promise-to-Pay Dunning Pause",
+      "attempts": 1,
+      "duration_ms": 4270.7,
+      "audit_trail_length": 3,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "38000.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Kiran Rao",
+            "email": "kiran@raosystems.com",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-27 initialized: B2B Overdue Invoice - Promise-to-Pay (PTP) Logging",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:32:38.614092"
+        },
+        {
+          "event_triggered": "customer_reply",
+          "amount": "38000.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Kiran Rao",
+            "email": "kiran@raosystems.com",
+            "contact": "9876543210"
+          },
+          "next_contact": null,
+          "message": "Our CFO will release payments on next Friday 2026-09-11. Please pause reminders until then.",
+          "channel": "whatsapp",
+          "direction": "inbound",
+          "created_at": "2026-09-04T00:32:38.676839"
+        },
+        {
+          "event_triggered": "log_promise_to_pay",
+          "amount": "38000.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Kiran Rao",
+            "email": "kiran@raosystems.com",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-11T00:00:00",
+          "message": "Promise to pay recorded for Sep 11, 2026. Confirmation sent to customer.",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:32:40.882743"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-28",
+      "category": "Compliance & Stopping",
+      "title": "Compliance Stopping Rule - WhatsApp 'STOP' Opt-Out",
+      "customer_name": "Harish Chandra",
+      "amount_inr": 1500.0,
+      "recovered_amount": 0.0,
+      "discount_inr": 0.0,
+      "operational_cost_inr": 0.0,
+      "net_roi_inr": 0.0,
+      "status": "closed",
+      "last_action": "audit_complete",
+      "channels": [
+        "System/DB"
+      ],
+      "policy_guardrail": "TRAI/RBI Consent Opt-Out Rule",
+      "attempts": 0,
+      "duration_ms": 2030.5,
+      "audit_trail_length": 2,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "1500.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Harish Chandra",
+            "email": "harish.c@gmail.com",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-28 initialized: Compliance Stopping Rule - WhatsApp 'STOP' Opt-Out",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:32:46.094483"
+        },
+        {
+          "event_triggered": "customer_opt_out",
+          "amount": "1500.0",
+          "recovery_status": "closed",
+          "customer": {
+            "name": "Harish Chandra",
+            "email": "harish.c@gmail.com",
+            "contact": "9876543210"
+          },
+          "next_contact": null
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-29",
+      "category": "Compliance & Stopping",
+      "title": "Compliance Stopping Rule - Payment Dispute Triggered",
+      "customer_name": "Geeta Raman",
+      "amount_inr": 8900.0,
+      "recovered_amount": 0.0,
+      "discount_inr": 0.0,
+      "operational_cost_inr": 0.0,
+      "net_roi_inr": 0.0,
+      "status": "escalated",
+      "last_action": "get_voice_call",
+      "channels": [
+        "System/DB"
+      ],
+      "policy_guardrail": "Dispute Freeze Kill-Switch",
+      "attempts": 0,
+      "duration_ms": 2105.7,
+      "audit_trail_length": 2,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "8900.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Geeta Raman",
+            "email": "geeta.raman@gmail.com",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-29 initialized: Compliance Stopping Rule - Payment Dispute Triggered",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:32:51.516297"
+        },
+        {
+          "event_triggered": "create_payment_link",
+          "amount": "8900.0",
+          "recovery_status": "escalated",
+          "customer": {
+            "name": "Geeta Raman",
+            "email": "geeta.raman@gmail.com",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-07T00:32:51.570750",
+          "message": "Secure Razorpay payment link generated: https://rzp.io/l/sim-geeta.raman",
+          "channel": "link",
+          "direction": "outbound",
+          "created_at": "2026-09-04T00:32:51.589402"
+        }
+      ]
+    },
+    {
+      "scenario_id": "SCEN-30",
+      "category": "Compliance & Stopping",
+      "title": "Compliance & Safety Gate - Date Sanity & Hostility Escalation",
+      "customer_name": "Balram Singh",
+      "amount_inr": 15000.0,
+      "recovered_amount": 0.0,
+      "discount_inr": 0.0,
+      "operational_cost_inr": 0.9,
+      "net_roi_inr": -0.9,
+      "status": "escalated",
+      "last_action": "escalate_to_human",
+      "channels": [
+        "WhatsApp"
+      ],
+      "policy_guardrail": "TRAI/RBI Consent Opt-Out Rule",
+      "attempts": 0,
+      "duration_ms": 4895.7,
+      "audit_trail_length": 3,
+      "audit_log": [
+        {
+          "event_triggered": "batch_ingest",
+          "amount": "15000.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Balram Singh",
+            "email": "balram.singh@gmail.com",
+            "contact": "9876543210"
+          },
+          "message": "Scenario SCEN-30 initialized: Compliance & Safety Gate - Date Sanity & Hostility Escalation",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:32:56.842029"
+        },
+        {
+          "event_triggered": "customer_reply",
+          "amount": "15000.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Balram Singh",
+            "email": "balram.singh@gmail.com",
+            "contact": "9876543210"
+          },
+          "next_contact": null,
+          "message": "Stop harassing me. I will pay you in 2038.",
+          "channel": "whatsapp",
+          "direction": "inbound",
+          "created_at": "2026-09-04T00:32:56.873921"
+        },
+        {
+          "event_triggered": "escalate_to_human",
+          "amount": "15000.0",
+          "recovery_status": "escalated",
+          "customer": {
+            "name": "Balram Singh",
+            "email": "balram.singh@gmail.com",
+            "contact": "9876543210"
+          },
+          "next_contact": null,
+          "message": "Escalated to human support. Reason: Customer promised to pay on 2038-01-01 but was angry. Reason: Customer explicitly stated 'Stop harassing me' and gave an unrealistic future date ('2038') for payment.",
+          "channel": "system",
+          "direction": "system",
+          "created_at": "2026-09-04T00:32:59.721783"
+        }
+      ]
+    }
+  ]
+}

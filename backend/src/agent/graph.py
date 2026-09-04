@@ -6,7 +6,7 @@ from agent.nodes import AgentState, decide_event, decide_reply, execute, audit, 
 
 def route_entry(state: AgentState):
     event = state.get("event_source", "")
-    if event.startswith("inbound.") or event.startswith("scheduled."):
+    if event.startswith("inbound."):
         return "decide_reply"
     else:
         return "decide_event"

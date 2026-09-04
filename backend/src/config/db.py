@@ -1,10 +1,12 @@
 import json
+import logging
 from ast import excepthandler
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
 
-from celery.app.base import logger
+logger = logging.getLogger("renvue.db")
+
 from config.config import settings
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from models.models import CustomerProfile, RecoveryState

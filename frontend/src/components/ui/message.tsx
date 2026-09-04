@@ -53,7 +53,7 @@ export function MessageFooter({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("text-[11px] text-zinc-500 px-1 font-mono", className)}
+      className={cn("text-[11px] text-zinc-500 px-1 font-medium", className)}
       {...props}
     >
       {children}
