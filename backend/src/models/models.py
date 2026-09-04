@@ -28,9 +28,10 @@ class CustomerProfile(SQLModel, table=True):
 class RecoveryState(SQLModel, table=True):
     __tablename__ = "recovery_cases"
 
-    # Identity
+    # Identity & Multi-Tenancy
     case_id: str = Field(primary_key=True)  # our internal ID (uuid)
     source_id: str                          # Razorpay order/sub/invoice ID
+    account_id: str = Field(default="acc_default", index=True)  # Razorpay merchant account ID
     
     method:Optional[str] = None 
     through:Optional[str] = None 
@@ -38,6 +39,7 @@ class RecoveryState(SQLModel, table=True):
     decline_type: Optional[str] = None      # hard | soft | None
     failure_reason: Optional[str] = None    # "Insufficient funds" | "Card expired" | None
     error_details: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    case_metadata: dict = Field(default_factory=dict, sa_column=Column(JSON))
 
     # Money
     amount_inr: float

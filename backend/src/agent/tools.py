@@ -10,11 +10,13 @@ from config.clients import (
     send_twilio_whatsapp,
 )
 import config.db as app_db
+from config.config import settings
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from models.schema import (
     AuditEntry,
     CompleteCaseArgs,
+    DiscountOfferArgs,
     EmailReminderArgs,
     EscalateArgs,
     PaymentLinkArgs,
@@ -22,84 +24,29 @@ from models.schema import (
     SalaryDateArgs,
 )
 from service.states import load_state, save_state
-import logging as logger 
+from service.compliance import (
+    adjust_for_trai_window,
+    calculate_rbi_pre_debit_schedule,
+    calculate_salary_milestones,
+    format_rbi_pre_debit_intimation,
+    build_whatsapp_payload,
+    get_bell_curve_discount,
+    is_recurring_mandate_case,
+)
 from typing import Optional
+from config.logger import get_logger
 
-def get_next_follow_up_time(state) -> Optional[datetime]:
-    """
-    Computes progressive next retry milestone moving FORWARD in time:
-    - Attempt >= 3: None (escalated to human operations, stopping rule)
-    - Milestone is 3 days forward per attempt milestone (Attempt 1: +3d, Attempt 2: +6d, Attempt 3: +9d),
-      snapped to business hours (10:00 AM).
-    """
-    attempt = getattr(state, "attempt_count", 0)
-    if attempt >= 3:
-        return None
+from agent.utils import (
+    get_next_follow_up_time,
+    _schedule_task,
+    _log_audit,
+    ensure_payment_link,
+    sanity_date,
+    mark_case_escalated,
+    _generate_link_for_state,
+)
 
-    now = datetime.now()
-    days_forward = (attempt + 1) * 3
-    target = (now + timedelta(days=days_forward)).replace(hour=10, minute=0, second=0, microsecond=0)
-    return target
-
-
-async def _schedule_task(state, target_date: datetime, db):
-    from background.worker import invoke_agent_task, revoke_active_task, schedule_source
-
-    if state.active_task_id:
-        await revoke_active_task(state.active_task_id)
-
-    now = datetime.now()
-    if target_date <= now:
-        target_date = now + timedelta(minutes=1)
-
-    logger.info(f"  [SCHEDULE] case={state.case_id} next_retry_at={target_date.isoformat()}")
-
-    # Ensure schedule_source is connected
-    if schedule_source._connection_pool is None:
-        await schedule_source.startup()
-
-    created = await invoke_agent_task.kicker().schedule_by_time(
-        schedule_source,
-        target_date,
-        state.case_id,
-    )
-    # Store native Taskiq schedule ID so cancellation works cleanly
-    state.active_task_id = created.schedule_id
-    state.next_retry_at = target_date
-    await save_state(state, db)
-    logger.info(f"  [SCHEDULE] saved in Redis with schedule_id={created.schedule_id} — next_retry_at={state.next_retry_at}")
-
-
-async def _log_audit(
-    state,
-    tool_name: str,
-    next_retry_at: datetime | None,
-    db,
-    message: str | None = None,
-    channel: str | None = None,
-    direction: str | None = None,
-):
-    entry = AuditEntry(
-        event_triggered=tool_name,
-        amount=str(state.amount_inr),
-        recovery_status=state.recovery_status,
-        customer=state.customer,
-        next_contact=next_retry_at,
-        message=message,
-        channel=channel,
-        direction=direction,
-        created_at=datetime.now(),
-    )
-    state.audit_log.append(entry.model_dump(mode="json"))
-    logger.info(f"  [LOG_AUDIT] tool={tool_name} next_retry_at_param={next_retry_at} message={message}")
-    if next_retry_at:
-        state.next_retry_at = next_retry_at
-    elif tool_name in ["escalate_to_human", "complete_case"]:
-        state.next_retry_at = None
-    if tool_name in ["send_whatsapp_msg", "send_email_reminder", "get_voice_call", "escalate_to_human"]:
-        state.last_action_taken = tool_name
-    await save_state(state, db)
-    logger.info(f"  [LOG_AUDIT] save_state done for case={state.case_id}")
+logger = get_logger(__name__)
 
 
 @tool(args_schema=EmailReminderArgs)
@@ -121,25 +68,12 @@ async def send_email_reminder(urgency: str, config: RunnableConfig) -> str:
         logger.info(f"    → Urgency : {urgency}")
 
         ref_code = state.case_id[-4:].upper() if len(state.case_id) >= 4 else state.case_id
-        payment_link = (state.error_details or {}).get("payment_link")
-        if not payment_link:
-            try:
-                payment_link, link_type, is_sub = await _generate_link_for_state(
-                    state, customer_name, customer_email, state.customer.get("contact", ""), amount_inr
-                )
-                if state.error_details is None:
-                    state.error_details = {}
-                state.error_details["payment_link"] = payment_link
-                state.error_details["link_type"] = link_type
-                if is_sub:
-                    state.error_details["mandate_update"] = True
-                    state.error_details["sub_card_change"] = True
-                await save_state(state, db)
-            except Exception:
-                payment_link = f"https://rzp.io/l/inv-{ref_code.lower()}"
+        payment_link, _, _ = await ensure_payment_link(state, db)
+        meta = state.case_metadata or {}
+        amount_inr = meta.get("effective_amount_inr", state.amount_inr)
 
         extra_ctx = {
-            "invoice_number": (state.error_details or {}).get("invoice_number", f"INV-2026-{ref_code}"),
+            "invoice_number": meta.get("invoice_number", f"INV-2026-{ref_code}"),
             "link": payment_link
         }
 
@@ -169,38 +103,42 @@ async def send_email_reminder(urgency: str, config: RunnableConfig) -> str:
     return f"Email ({urgency}) queued for {customer_email}"
 
 
-async def _generate_link_for_state(
-    state, customer_name: str, customer_email: str, contact_number: str, amount_inr: float
-) -> tuple[str, str, bool]:
+@tool(args_schema=DiscountOfferArgs)
+async def calculate_discount_offer(config: RunnableConfig = None) -> str:
     """
-    Differentiates between one-time cart/invoice recovery and recurring subscription recovery.
-    Returns (short_url, link_type, is_subscription).
-    For recurring subscriptions, generates a Mandate Re-Authorization / Token Migration link (sub_card_change).
-    For one-time orders/invoices, generates a standard one-time Razorpay payment link.
+    Evaluates customer profile and margin policy to compute the maximum approved discount percentage.
+    Call this tool dynamically when an abandoned checkout customer hesitates or asks for a discount/concession.
+    Returns the approved discount percentage and discounted payable amount.
     """
-    sub_id = (state.error_details or {}).get("subscription_id")
-    if not sub_id and state.source_id and "sub_" in str(state.source_id):
-        sub_id = state.source_id
+    case_id = config.get("configurable", {}).get("thread_id") if config else None
+    async with app_db.AsyncSessionLocal() as db:
+        state = await load_state(case_id, db)
+        if not state:
+            return "Case state not found."
 
-    is_subscription = (
-        state.case_type in ["failed_subscription", "subscription_cancelled", "subscription"]
-        or bool(sub_id)
-    )
+        if state.case_type != "abandoned_checkout":
+            return "Policy rejection: Concessions and discounts are not authorized for commercial invoices or recurring subscription mandates."
 
-    if is_subscription:
-        short_url = await create_rzp_mandate_update_link(
-            sub_id or f"sub_{state.case_id[-8:]}",
-            customer_name,
-            customer_email,
-            contact_number,
-            amount_inr,
+        discount_pct = get_bell_curve_discount(state)
+        original_amt = state.amount_inr
+        discounted_amt = round(original_amt * (1.0 - (discount_pct / 100.0)), 2)
+        await save_state(state, db)
+
+        await _log_audit(
+            state,
+            "calculate_discount_offer",
+            None,
+            db,
+            message=f"Deterministic margin approval: {discount_pct:.0f}% concession approved (payable: ₹{discounted_amt:,.0f}).",
+            channel="system",
+            direction="system",
         )
-        return short_url, "mandate_reauthorization", True
-    else:
-        short_url = await create_rzp_payment_link(
-            customer_name, customer_email, contact_number, amount_inr
+
+        return (
+            f"Approved Concession: {discount_pct:.0f}% discount authorized under margin policy. "
+            f"Original amount: ₹{original_amt:,.0f}, Discounted payable amount: ₹{discounted_amt:,.0f}. "
+            f"Call create_payment_link(discount_pct={discount_pct:.0f}) to generate the checkout link."
         )
-        return short_url, "one_time_payment", False
 
 
 @tool(args_schema=PaymentLinkArgs)
@@ -220,10 +158,16 @@ async def create_payment_link(discount_pct: float = 0.0, config: RunnableConfig 
         customer_contact = state.customer.get("contact", "")
         amount_inr = state.amount_inr
 
-        # Bounded concession enforcement (clamped between min_discount and max_discount)
-        if discount_pct > 0:
-            discount_pct = max(float(settings.min_discount), min(float(discount_pct), float(settings.max_discount)))
+        # Bounded concession enforcement (clamped to bell-curve ceiling)
+        if state.case_type == "abandoned_checkout":
+            eligible = get_bell_curve_discount(state)
+            discount_pct = eligible if discount_pct <= 0 else min(discount_pct, eligible)
             amount_inr = round(state.amount_inr * (1.0 - (discount_pct / 100.0)), 2)
+        else:
+            if discount_pct > 0:
+                logger.warning(f"  [DISCOUNT POLICY] Concession rejected for non-abandoned case: {state.case_type}")
+            discount_pct = 0.0
+            amount_inr = state.amount_inr
 
         short_url, link_type, is_subscription = await _generate_link_for_state(
             state, customer_name, customer_email, customer_contact, amount_inr
@@ -241,16 +185,19 @@ async def create_payment_link(discount_pct: float = 0.0, config: RunnableConfig 
             except Exception as e:
                 logger.info(f"    [WARN] Failed to schedule follow-up task (non-fatal): {e}")
 
-        # Store payment link and effective amount in error_details for message hydration
-        if state.error_details is None:
-            state.error_details = {}
-        state.error_details["payment_link"] = short_url
-        state.error_details["link_type"] = link_type
+        # Store payment link and effective amount in case_metadata for message hydration
+        if state.case_metadata is None:
+            state.case_metadata = {}
+        state.case_metadata["payment_link"] = short_url
+        state.case_metadata["link_type"] = link_type
         if is_subscription:
-            state.error_details["mandate_update"] = True
-            state.error_details["sub_card_change"] = True
-        state.error_details["discount_pct"] = discount_pct
-        state.error_details["effective_amount_inr"] = amount_inr
+            state.case_metadata["mandate_update"] = True
+            state.case_metadata["sub_card_change"] = True
+        state.case_metadata["discount_pct"] = discount_pct
+        state.case_metadata["effective_amount_inr"] = amount_inr
+        if discount_pct > 0:
+            state.case_metadata["eligible_discount"] = discount_pct
+        await save_state(state, db)
 
         disc_str = f" ({discount_pct:.0f}% discount applied, payable ₹{amount_inr:,.0f})" if discount_pct > 0 else ""
         if is_subscription:
@@ -291,22 +238,7 @@ async def escalate_to_human(reason: str, config: RunnableConfig) -> str:
         logger.info(f"    → Customer : {customer_name}")
         logger.info(f"    → Reason   : {reason}")
 
-        state.recovery_status = "escalated"
-        state.next_retry_at = None
-        if state.active_task_id:
-            from background.worker import revoke_active_task
-            await revoke_active_task(state.active_task_id)
-            state.active_task_id = None
-
-        await _log_audit(
-            state,
-            "escalate_to_human",
-            None,
-            db,
-            message=f"Escalated to human support. Reason: {reason}",
-            channel="system",
-            direction="system",
-        )
+        await mark_case_escalated(state, reason, db=db)
 
     return f"Case for {customer_name} escalated to human. Reason: {reason}"
 
@@ -322,30 +254,7 @@ async def get_next_salary_date(config: RunnableConfig) -> str:
     async with app_db.AsyncSessionLocal() as db:
         state = await load_state(case_id, db)
         ref = state.next_retry_at.date() if (state and state.next_retry_at) else date.today()
-        year, month = ref.year, ref.month
-
-        milestones = []
-        for day in [1, 15]:
-            try:
-                d = date(year, month, day)
-                if d > ref:
-                    milestones.append(d)
-            except ValueError:
-                pass
-
-        last_day = calendar.monthrange(year, month)[1]
-        last_date = date(year, month, last_day)
-        offset = (last_date.weekday() - 4) % 7
-        last_friday = last_date - timedelta(days=offset)
-        if last_friday > ref:
-            milestones.append(last_friday)
-
-        milestones = sorted(set(milestones))
-
-        if not milestones:
-            next_month = month + 1 if month < 12 else 1
-            next_year = year if month < 12 else year + 1
-            milestones = [date(next_year, next_month, 1)]
+        milestones = calculate_salary_milestones(ref)
 
         result = ", ".join(str(d) for d in milestones)
         closest = milestones[0]
@@ -396,8 +305,7 @@ async def complete_case(summary: str, config: RunnableConfig) -> str:
                     channel="system",
                     direction="system",
                 )
-    print(f"\n  [TOOL] complete_case")
-    print(f"    → Summary : {summary}")
+    logger.info(f"[TOOL] complete_case: {summary}")
     return "Case workflow completed."
 
 
@@ -418,7 +326,7 @@ async def send_whatsapp_msg(msg: str, config: RunnableConfig):
             return "Failed: Customer has no contact number."
 
         # Link Hydration (Issue #4): Ensure real payment link is injected instead of ghost link
-        payment_link = (state.error_details or {}).get("payment_link")
+        payment_link = (state.case_metadata or {}).get("payment_link")
         needs_link = "{payment_link}" in msg or any(
             k in msg.lower() for k in ["link", "tap", "click", "pay", "settle", "checkout", "portal", "retry"]
         )
@@ -429,27 +337,7 @@ async def send_whatsapp_msg(msg: str, config: RunnableConfig):
             reloaded = await load_state(case_id, db)
             if reloaded:
                 state = reloaded
-                payment_link = (state.error_details or {}).get("payment_link")
-
-            if not payment_link:
-                try:
-                    customer_name = state.customer.get("name", "Customer")
-                    customer_email = state.customer.get("email", "")
-                    effective_amt = (state.error_details or {}).get("effective_amount_inr", state.amount_inr)
-                    payment_link, link_type, is_sub = await _generate_link_for_state(
-                        state, customer_name, customer_email, contact_number, effective_amt
-                    )
-                    if state.error_details is None:
-                        state.error_details = {}
-                    state.error_details["payment_link"] = payment_link
-                    state.error_details["link_type"] = link_type
-                    if is_sub:
-                        state.error_details["mandate_update"] = True
-                        state.error_details["sub_card_change"] = True
-                    await save_state(state, db)
-                    logger.info(f"    → Hydrated missing {link_type} link on-the-fly: {payment_link}")
-                except Exception as e:
-                    logger.warning(f"    [WARN] Failed to auto-create payment link: {e}")
+            payment_link, _, _ = await ensure_payment_link(state, db)
 
         # Hydrate message text with the payment link
         if payment_link:
@@ -467,15 +355,19 @@ async def send_whatsapp_msg(msg: str, config: RunnableConfig):
                     else:
                         msg = f"{msg.strip()}\n\n🔗 Pay securely: {payment_link}"
         
-        sid = await send_twilio_whatsapp(contact_number, msg)
-        print(f"Message dispatched successfully! SID: {sid}")
+        # Meta WhatsApp HSM Utility Compliance (Issue #15)
+        whatsapp_payload = build_whatsapp_payload(state, msg, payment_link=payment_link)
+        outbound_text = whatsapp_payload["body"]
+        
+        sid = await send_twilio_whatsapp(contact_number, outbound_text)
+        logger.info(f"Message dispatched successfully! SID: {sid} (Compliance: {whatsapp_payload.get('meta_compliance')})")
 
         next_contact = get_next_follow_up_time(state)
         if next_contact:
             try:
                 await _schedule_task(state, next_contact, db)
             except Exception as e:
-                print(f"    [WARN] Failed to schedule follow-up task (non-fatal): {e}")
+                logger.warning(f"[WARN] Failed to schedule follow-up task (non-fatal): {e}")
         else:
             state.next_retry_at = None
             await save_state(state, db)
@@ -485,9 +377,11 @@ async def send_whatsapp_msg(msg: str, config: RunnableConfig):
             "send_whatsapp_msg",
             next_contact,
             db,
-            message=msg,
+            message=outbound_text,
             channel="whatsapp",
             direction="outbound",
+            meta_compliance=whatsapp_payload.get("meta_compliance"),
+            hsm_template=whatsapp_payload.get("template_name"),
         )
 
     return f"WhatsApp sent to {contact_number}. SID: {sid}"
@@ -514,7 +408,7 @@ async def get_voice_call(msg: str, config: RunnableConfig):
             try:
                 await _schedule_task(state, next_contact, db)
             except Exception as e:
-                print(f"    [WARN] Failed to schedule follow-up task (non-fatal): {e}")
+                logger.warning(f"[WARN] Failed to schedule follow-up task (non-fatal): {e}")
         else:
             state.next_retry_at = None
             await save_state(state, db)
@@ -532,79 +426,19 @@ async def get_voice_call(msg: str, config: RunnableConfig):
     return f"Voice note dispatched successfully to {contact_number}! SID: {sid}"
 
 
-
-from config.config import settings
-from datetime import datetime, timedelta
-
-def sanity_date(d: datetime | None) -> tuple[bool, str]:
-    """
-    Validates that promise-to-pay date is:
-    1. Not None
-    2. Today or in the future (no past dates)
-    3. Within max_grace_period days (default 7 days) from today
-    """
-    if not d:
-        return False, "Promise date could not be parsed or was not provided"
-    if d.tzinfo is not None:
-        d = d.replace(tzinfo=None)
-    now = datetime.now()
-    today = now.date()
-    target_date = d.date()
-
-    if target_date < today:
-        return False, f"Date {target_date.strftime('%Y-%m-%d')} is in the past (today is {today.strftime('%Y-%m-%d')})"
-
-    max_allowed = today + timedelta(days=settings.max_grace_period)
-    if target_date > max_allowed:
-        days_out = (target_date - today).days
-        return False, f"Date {target_date.strftime('%Y-%m-%d')} is {days_out} days in the future, exceeding the maximum policy grace period of {settings.max_grace_period} days"
-
-    return True, "Valid"
-
-
-async def _escalate_case_in_tool(rs, reason: str, db):
-    """
-    Directly persists escalation to database, revokes pending tasks,
-    writes an internal escalation audit entry, and triggers an SSE broadcast.
-    """
-    rs.recovery_status = "escalated"
-    rs.last_action_taken = "escalate_to_human"
-    rs.next_retry_at = None
-
-    if getattr(rs, "active_task_id", None):
-        try:
-            from background.worker import revoke_active_task
-            await revoke_active_task(rs.active_task_id)
-            rs.active_task_id = None
-        except Exception as e:
-            logger.warning(f"[HIL] Could not revoke task: {e}")
-
-    await _log_audit(
-        rs,
-        "escalate_to_human",
-        None,
-        db,
-        message=f"Escalated to human ops: {reason}",
-        channel="system",
-        direction="internal",
-    )
-    await save_state(rs, db)
-
-    try:
-        from service.broadcast import broadcast_case_update
-        await broadcast_case_update(rs)
-    except Exception as e:
-        logger.warning(f"[HIL] Could not broadcast escalation: {e}")
-
-
 @tool(args_schema=PromiseToPayArgs)
 async def log_promise_to_pay(
-    date_str: str, reason: str, sentiment: str, config: RunnableConfig
+    reason: str = "Customer commitment regarding payment",
+    sentiment: str = "neutral",
+    date_str: Optional[str] = None,
+    config: RunnableConfig = None
 ):
     """
-    Call this tool when a customer replies via email or WhatsApp and promises to pay
-    on a specific date. This will validate the date, schedule a business-hours reminder,
-    or immediately escalate to human operations if the date is invalid, in the past, or out-of-bounds.
+    Call this tool when a customer replies via email or WhatsApp regarding payment.
+    - If customer committed to a specific date: validates date (not in past, not exceeding cumulative grace period),
+      schedules business-hours reminder, or escalates if invalid/hostile/grace-exceeded.
+    - If customer did not provide a concrete date (or date_str is None/unresolvable): schedules standard follow-up
+      cadence (+3 days from now) WITHOUT escalating to human operations.
     """
     case_id = config.get("configurable", {}).get("thread_id")
     async with app_db.AsyncSessionLocal() as db:
@@ -616,44 +450,107 @@ async def log_promise_to_pay(
         if getattr(state, "attempt_count", 0) >= 3:
             rej_reason = f"Max attempts ({state.attempt_count}) reached. Cannot accept automated promise without human approval."
             logger.warning(f"[PTP REJECTED] {rej_reason} for case {state.case_id}")
-            await _escalate_case_in_tool(state, rej_reason, db)
+            await mark_case_escalated(state, rej_reason, db=db)
             return f"PROMISE_REJECTED: {rej_reason}. Case has been escalated to human operations."
 
         now = datetime.now()
         today = now.date()
 
-        # 1. Parse target_date supporting multiple formats
+        # Check hostility immediately
+        is_hostile = sentiment.lower() in ["explicit", "threat", "danger", "angry", "hostile", "abusive"]
+        if is_hostile:
+            rej_reason = f"Customer sentiment is hostile ('{sentiment}')"
+            logger.warning(f"[PTP REJECTED] {rej_reason} for case {state.case_id}")
+            await mark_case_escalated(state, rej_reason, db=db)
+            return f"PROMISE_REJECTED: {rej_reason}. Case has been escalated to human operations."
+
+        if state.case_metadata is None:
+            state.case_metadata = {}
+
+        # Establish anchor date from initial failure/incident
+        if "initial_failure_date" not in state.case_metadata:
+            state.case_metadata["initial_failure_date"] = (
+                state.first_seen_at.date().isoformat() if state.first_seen_at else today.isoformat()
+            )
+        try:
+            anchor_date = datetime.fromisoformat(state.case_metadata["initial_failure_date"]).date()
+        except Exception:
+            anchor_date = state.first_seen_at.date() if state.first_seen_at else today
+
+        # Case 1: No concrete date provided (or set to None / empty) -> standard follow-up (+3 days), NO escalation
+        if not date_str or str(date_str).strip().lower() in ("none", "null", ""):
+            from datetime import time as dt_time
+            follow_up_time = datetime.combine((now + timedelta(days=3)).date(), dt_time(10, 0))
+            await _schedule_task(state, follow_up_time, db)
+            
+            note_msg = f"Customer reply noted without specific commitment date: '{reason}'. Standard follow-up scheduled for {follow_up_time.strftime('%b %d, %Y')} (+3 days)."
+            await _log_audit(
+                state,
+                "log_customer_reply",
+                follow_up_time,
+                db,
+                message=note_msg,
+                channel="system",
+                direction="system",
+            )
+            return (
+                f"Customer reply recorded. No concrete commitment date specified; "
+                f"standard follow-up scheduled for {follow_up_time.strftime('%Y-%m-%d')} (+3 days). "
+                f"Automated recovery remains active."
+            )
+
+        # Case 2: Date provided -> Parse supporting ISO, common formats, or dateutil fuzzy parse
+        clean_date_str = str(date_str).strip()
         target_date = None
         for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%dT%H:%M:%S"):
             try:
-                target_date = datetime.strptime(date_str.strip()[:19], fmt)
+                target_date = datetime.strptime(clean_date_str[:19], fmt)
                 break
             except ValueError:
                 continue
         if not target_date:
             try:
-                target_date = datetime.fromisoformat(date_str.strip())
+                target_date = datetime.fromisoformat(clean_date_str)
             except Exception:
                 try:
                     from dateutil.parser import parse
-                    target_date = parse(date_str.strip(), fuzzy=True, default=datetime(now.year, now.month, now.day, 10, 0))
+                    target_date = parse(clean_date_str, fuzzy=True, default=datetime(now.year, now.month, now.day, 10, 0))
                 except Exception:
                     target_date = None
 
-        # Check hostility and grace period sanity
-        is_hostile = sentiment.lower() in ["explicit", "threat", "danger", "angry", "hostile", "abusive"]
-        is_valid, reject_reason = sanity_date(target_date)
-
-        if is_hostile or not is_valid:
-            rej_reason = f"Customer sentiment is hostile ('{sentiment}')" if is_hostile else reject_reason
-            logger.warning(f"[PTP REJECTED] {rej_reason} for case {state.case_id}")
-            await _escalate_case_in_tool(state, rej_reason, db)
+        if not target_date:
+            # Ambiguous or unparseable date -> do not escalate! Follow up as usual (+3 days)
+            from datetime import time as dt_time
+            follow_up_time = datetime.combine((now + timedelta(days=3)).date(), dt_time(10, 0))
+            await _schedule_task(state, follow_up_time, db)
+            note_msg = f"Customer reply noted with unparseable date '{date_str}' ('{reason}'). Standard follow-up scheduled for {follow_up_time.strftime('%b %d, %Y')} (+3 days)."
+            await _log_audit(
+                state,
+                "log_customer_reply",
+                follow_up_time,
+                db,
+                message=note_msg,
+                channel="system",
+                direction="system",
+            )
             return (
-                f"PROMISE_REJECTED: {rej_reason}. "
+                f"Could not parse commitment date '{date_str}'. "
+                f"Standard follow-up scheduled for {follow_up_time.strftime('%Y-%m-%d')} (+3 days). "
+                f"Automated recovery remains active."
+            )
+
+        # Case 3: Concrete date parsed -> Validate against past date and cumulative grace limit
+        is_valid, reject_reason = sanity_date(target_date, anchor_date=anchor_date)
+
+        if not is_valid:
+            logger.warning(f"[PTP REJECTED] {reject_reason} for case {state.case_id}")
+            await mark_case_escalated(state, reject_reason, db=db)
+            return (
+                f"PROMISE_REJECTED: {reject_reason}. "
                 f"Case has been escalated to human operations."
             )
 
-        # 2. Timing adjustments: Snap to business hours (10:00 AM), avoiding 12:00 AM midnight retries
+        # Timing adjustments: Snap to business hours (10:00 AM), avoiding midnight
         from datetime import time as dt_time
         if target_date.date() > today:
             target_date = datetime.combine(target_date.date(), dt_time(10, 0))
@@ -662,9 +559,20 @@ async def log_promise_to_pay(
             if target_date <= now:
                 target_date = now + timedelta(hours=2)
 
-        if state.error_details is None:
-            state.error_details = {}
-        state.error_details["ptp_date"] = target_date.strftime("%Y-%m-%d")
+        # Track cumulative grace period used
+        grace_days_from_incident = (target_date.date() - anchor_date).days
+        state.case_metadata["ptp_date"] = target_date.strftime("%Y-%m-%d")
+        state.case_metadata["cumulative_grace_days_used"] = grace_days_from_incident
+        state.case_metadata["remaining_grace_days"] = max(0, settings.max_grace_period - grace_days_from_incident)
+
+        ptp_history = state.case_metadata.get("ptp_history", [])
+        ptp_history.append({
+            "promised_date": target_date.strftime("%Y-%m-%d"),
+            "recorded_at": now.isoformat(),
+            "grace_days_used": grace_days_from_incident,
+            "reason": reason
+        })
+        state.case_metadata["ptp_history"] = ptp_history
 
         await _schedule_task(state, target_date, db)
 
@@ -673,7 +581,7 @@ async def log_promise_to_pay(
         if contact_number:
             await send_twilio_whatsapp(contact_number, confirm_msg)
 
-        ptp_msg = f"Promise to pay recorded for {target_date.strftime('%b %d, %Y')}. Confirmation sent to customer."
+        ptp_msg = f"Promise to pay recorded for {target_date.strftime('%b %d, %Y')} ({grace_days_from_incident}/{settings.max_grace_period} cumulative grace days used). Confirmation sent to customer."
         await _log_audit(
             state,
             "log_promise_to_pay",
@@ -684,12 +592,13 @@ async def log_promise_to_pay(
             direction="system",
         )
 
-    return f"Successfully logged promise to pay on {date_str}. Confirmation message sent to customer."
+    return f"Successfully logged promise to pay on {target_date.strftime('%Y-%m-%d')} ({grace_days_from_incident}/{settings.max_grace_period} grace days used). Confirmation message sent to customer."
 
 
 tools = [
     send_email_reminder,
     create_payment_link,
+    calculate_discount_offer,
     escalate_to_human,
     get_next_salary_date,
     complete_case,

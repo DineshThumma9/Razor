@@ -125,7 +125,7 @@ def get_policy_rule_tag(scen: dict, final_state: RecoveryState) -> str:
 
 async def execute_scenario(scen: dict, index: int) -> dict:
     
-    await asyncio.sleep(3)
+    await asyncio.sleep(1)
     """Executes a single scenario through the complete recovery lifecycle."""
     case_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"batch-v1-{scen['id']}"))
     source_id = f"src_batch_{scen['id'].lower()}"
@@ -162,6 +162,7 @@ async def execute_scenario(scen: dict, index: int) -> dict:
             decline_type=decline_type,
             failure_reason=failure_reason,
             error_details=error_details,
+            case_metadata={},
             method=method,
             through=through,
             amount_inr=amount_inr,
@@ -254,7 +255,7 @@ async def execute_scenario(scen: dict, index: int) -> dict:
 
     # Step 2: Lifecycle Progression & Simulated Recovery Resolution
     # Throttler gap (2 seconds): Allows the case to visibly populate the Active Processing Queue on the dashboard before resolution
-    await asyncio.sleep(2.0)
+    await asyncio.sleep(1.0)
 
     sim = scen.get("simulation", {})
     action = sim.get("customer_action", "")
@@ -273,19 +274,19 @@ async def execute_scenario(scen: dict, index: int) -> dict:
     elif mid_state.attempt_count > 3:
         payment_eligible = False
     else:
-        err_details = mid_state.error_details or {}
+        meta = mid_state.case_metadata or {}
         audit_events = {entry.get("event_triggered") for entry in (mid_state.audit_log or [])}
-        has_payment_link = bool(err_details.get("payment_link")) or "create_payment_link" in audit_events
+        has_payment_link = bool(meta.get("payment_link")) or "create_payment_link" in audit_events
         has_outreach = bool(audit_events.intersection({"send_whatsapp_msg", "send_email_reminder", "get_voice_call"}))
 
         if action in ["pays_via_link", "pays_on_milestone", "pays_after_voice", "authorizes_otp_link"]:
             # Customer pays only if agent successfully created a payment link or engaged via outbound outreach
             if has_payment_link or has_outreach:
                 payment_eligible = True
-                actual_discount_pct = float(err_details.get("discount_pct", 0.0))
+                actual_discount_pct = float(meta.get("discount_pct", 0.0))
         elif action == "negotiates_and_pays":
             # Dynamic Negotiation Rule: Customer pays ONLY if concession offered falls within bounded policy (5% - 30%)
-            agent_disc = float(err_details.get("discount_pct", 0.0))
+            agent_disc = float(meta.get("discount_pct", 0.0))
             if agent_disc == 0.0 and sim.get("discount_applied"):
                 agent_disc = float(sim.get("discount_applied", 0.0))
 

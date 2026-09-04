@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-09-03T19:03:01.800054+00:00",
+  "timestamp": "2026-09-04T11:28:29.632001+00:00",
   "total_scenarios": 30,
   "metrics": {
     "total_at_risk_inr": 311187.0,
-    "total_recovered_inr": 255203.4,
-    "total_discounts_inr": 2484.6,
-    "total_operational_cost_inr": 8.0,
-    "net_roi_inr": 252710.8,
+    "total_recovered_inr": 257013.0,
+    "total_discounts_inr": 675.0,
+    "total_operational_cost_inr": 20.7,
+    "net_roi_inr": 256317.3,
     "recovered_count": 23,
     "escalated_count": 3,
     "closed_count": 4
@@ -20,16 +20,16 @@
       "amount_inr": 2499.0,
       "recovered_amount": 2499.0,
       "discount_inr": 0.0,
-      "operational_cost_inr": 0.0,
-      "net_roi_inr": 2499.0,
+      "operational_cost_inr": 0.75,
+      "net_roi_inr": 2498.25,
       "status": "recovered",
       "last_action": "send_whatsapp_msg",
       "channels": [
-        "System/DB"
+        "WhatsApp"
       ],
       "policy_guardrail": "Standard Bounded Recovery Policy",
       "attempts": 1,
-      "duration_ms": 2219.2,
+      "duration_ms": 1490.1,
       "audit_trail_length": 2,
       "audit_log": [
         {
@@ -44,10 +44,10 @@
           "message": "Scenario SCEN-01 initialized: Hard Decline - Expired Card",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:30:16.983514"
+          "created_at": "2026-09-04T16:56:52.184496"
         },
         {
-          "event_triggered": "create_payment_link",
+          "event_triggered": "send_whatsapp_msg",
           "amount": "2499.0",
           "recovery_status": "pending",
           "customer": {
@@ -55,11 +55,11 @@
             "email": "aarav.sharma@gmail.com",
             "contact": "9876543210"
           },
-          "next_contact": "2026-09-07T00:30:17.070802",
-          "message": "Secure Razorpay payment link generated: https://rzp.io/l/sim-aarav.sharma",
-          "channel": "link",
+          "next_contact": "2026-09-07T10:00:00",
+          "message": "Hi Aarav Sharma, your payment of \u20b92,499 on your Visa (\u2022\u20224242) was declined. Tap the link to update your payment method or pay with UPI. (Bank RRN: 477510873359)\n\n\ud83d\udd17 Pay securely: https://rzp.io/l/sim-aarav.sharma\n\n(Ref: #RNV-947E)",
+          "channel": "whatsapp",
           "direction": "outbound",
-          "created_at": "2026-09-04T00:30:17.100050"
+          "created_at": "2026-09-04T16:56:52.660612"
         }
       ]
     },
@@ -80,7 +80,7 @@
       ],
       "policy_guardrail": "Unresolvable Decline Circuit-Breaker",
       "attempts": 0,
-      "duration_ms": 2070.0,
+      "duration_ms": 1421.2,
       "audit_trail_length": 2,
       "audit_log": [
         {
@@ -95,7 +95,7 @@
           "message": "Scenario SCEN-02 initialized: Hard Decline - Card Lost or Stolen",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:30:22.421404"
+          "created_at": "2026-09-04T16:56:55.983917"
         },
         {
           "event_triggered": "send_whatsapp_msg",
@@ -106,11 +106,11 @@
             "email": "priya.nair@outlook.com",
             "contact": "9876543210"
           },
-          "next_contact": "2026-09-07T00:30:22.454366",
-          "message": "Your payment was blocked by your bank for security reasons. Please try a different payment method or contact your bank. (Ref: #RNV-7CD6)",
+          "next_contact": "2026-09-07T10:00:00",
+          "message": "Your payment was blocked by your bank for security reasons. Please try a different payment method or contact your bank.\n\n\ud83d\udd17 Pay securely: https://rzp.io/l/sim-priya.nair\n\n(Ref: #RNV-7CD6)",
           "channel": "whatsapp",
           "direction": "outbound",
-          "created_at": "2026-09-04T00:30:22.465043"
+          "created_at": "2026-09-04T16:56:56.360889"
         }
       ]
     },
@@ -131,7 +131,7 @@
       ],
       "policy_guardrail": "Unresolvable Decline Circuit-Breaker",
       "attempts": 0,
-      "duration_ms": 2071.0,
+      "duration_ms": 1443.7,
       "audit_trail_length": 2,
       "audit_log": [
         {
@@ -146,7 +146,7 @@
           "message": "Scenario SCEN-03 initialized: Hard Decline - Suspected Fraud",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:30:27.744591"
+          "created_at": "2026-09-04T16:56:58.646527"
         },
         {
           "event_triggered": "send_whatsapp_msg",
@@ -157,11 +157,11 @@
             "email": "rohan.deshmukh@gmail.com",
             "contact": "9876543210"
           },
-          "next_contact": "2026-09-07T00:30:27.780208",
-          "message": "Your payment was blocked by your bank for security reasons. Please try a different payment method or contact your bank. (Ref: #RNV-D058)",
+          "next_contact": "2026-09-07T10:00:00",
+          "message": "Your payment was blocked by your bank for security reasons. Please try a different payment method or contact your bank.\n\n\ud83d\udd17 Pay securely: https://rzp.io/l/sim-rohan.deshmukh\n\n(Ref: #RNV-D058)",
           "channel": "whatsapp",
           "direction": "outbound",
-          "created_at": "2026-09-04T00:30:27.792996"
+          "created_at": "2026-09-04T16:56:59.057357"
         }
       ]
     },
@@ -173,16 +173,16 @@
       "amount_inr": 1299.0,
       "recovered_amount": 1299.0,
       "discount_inr": 0.0,
-      "operational_cost_inr": 0.0,
-      "net_roi_inr": 1299.0,
+      "operational_cost_inr": 0.75,
+      "net_roi_inr": 1298.25,
       "status": "recovered",
       "last_action": "send_whatsapp_msg",
       "channels": [
-        "System/DB"
+        "WhatsApp"
       ],
       "policy_guardrail": "Standard Bounded Recovery Policy",
       "attempts": 1,
-      "duration_ms": 2104.7,
+      "duration_ms": 1438.7,
       "audit_trail_length": 2,
       "audit_log": [
         {
@@ -197,10 +197,10 @@
           "message": "Scenario SCEN-04 initialized: Hard Decline - Invalid CVV on Card",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:30:33.070910"
+          "created_at": "2026-09-04T16:57:01.313561"
         },
         {
-          "event_triggered": "create_payment_link",
+          "event_triggered": "send_whatsapp_msg",
           "amount": "1299.0",
           "recovery_status": "pending",
           "customer": {
@@ -208,11 +208,11 @@
             "email": "ananya.roy@yahoo.com",
             "contact": "9876543210"
           },
-          "next_contact": "2026-09-07T00:30:33.105384",
-          "message": "Secure Razorpay payment link generated: https://rzp.io/l/sim-ananya.roy",
-          "channel": "link",
+          "next_contact": "2026-09-07T10:00:00",
+          "message": "Hi Ananya Roy, your payment of \u20b91,299 on your MasterCard (\u2022\u20224242) was declined. Tap the link to update your payment method or pay with UPI. (Bank RRN: 598771427288)\n\n\ud83d\udd17 Pay securely: https://rzp.io/l/sim-ananya.roy\n\n(Ref: #RNV-0647)",
+          "channel": "whatsapp",
           "direction": "outbound",
-          "created_at": "2026-09-04T00:30:33.118706"
+          "created_at": "2026-09-04T16:57:01.713700"
         }
       ]
     },
@@ -224,16 +224,16 @@
       "amount_inr": 3999.0,
       "recovered_amount": 3999.0,
       "discount_inr": 0.0,
-      "operational_cost_inr": 0.0,
-      "net_roi_inr": 3999.0,
+      "operational_cost_inr": 0.75,
+      "net_roi_inr": 3998.25,
       "status": "recovered",
       "last_action": "send_whatsapp_msg",
       "channels": [
-        "System/DB"
+        "WhatsApp"
       ],
       "policy_guardrail": "Standard Bounded Recovery Policy",
       "attempts": 1,
-      "duration_ms": 2105.3,
+      "duration_ms": 1422.5,
       "audit_trail_length": 2,
       "audit_log": [
         {
@@ -248,10 +248,10 @@
           "message": "Scenario SCEN-05 initialized: Hard Decline - Issuer Do Not Honour",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:30:38.411274"
+          "created_at": "2026-09-04T16:57:04.077335"
         },
         {
-          "event_triggered": "create_payment_link",
+          "event_triggered": "send_whatsapp_msg",
           "amount": "3999.0",
           "recovery_status": "pending",
           "customer": {
@@ -259,11 +259,11 @@
             "email": "karthik.pillai@gmail.com",
             "contact": "9876543210"
           },
-          "next_contact": "2026-09-07T00:30:38.448234",
-          "message": "Secure Razorpay payment link generated: https://rzp.io/l/sim-karthik.pillai",
-          "channel": "link",
+          "next_contact": "2026-09-07T10:00:00",
+          "message": "Hi Karthik Pillai, your payment of \u20b93,999 on your MasterCard (\u2022\u20224242) was declined. Tap the link to update your payment method or pay with UPI. (Bank RRN: 869535774568)\n\n\ud83d\udd17 Pay securely: https://rzp.io/l/sim-karthik.pillai\n\n(Ref: #RNV-ACDE)",
+          "channel": "whatsapp",
           "direction": "outbound",
-          "created_at": "2026-09-04T00:30:38.472278"
+          "created_at": "2026-09-04T16:57:04.457242"
         }
       ]
     },
@@ -284,7 +284,7 @@
       ],
       "policy_guardrail": "Unresolvable Decline Circuit-Breaker",
       "attempts": 0,
-      "duration_ms": 2086.9,
+      "duration_ms": 1424.3,
       "audit_trail_length": 2,
       "audit_log": [
         {
@@ -299,7 +299,7 @@
           "message": "Scenario SCEN-06 initialized: Hard Decline - Account Frozen / Legal Hold",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:30:43.721453"
+          "created_at": "2026-09-04T16:57:06.725493"
         },
         {
           "event_triggered": "send_whatsapp_msg",
@@ -310,11 +310,11 @@
             "email": "vikram.sethi@gmail.com",
             "contact": "9876543210"
           },
-          "next_contact": "2026-09-07T00:30:43.754773",
-          "message": "Your payment was blocked by your bank for security reasons. Please try a different payment method or contact your bank. (Ref: #RNV-767F)",
+          "next_contact": "2026-09-07T10:00:00",
+          "message": "Your payment was blocked by your bank for security reasons. Please try a different payment method or contact your bank.\n\n\ud83d\udd17 Pay securely: https://rzp.io/l/sim-vikram.sethi\n\n(Ref: #RNV-767F)",
           "channel": "whatsapp",
           "direction": "outbound",
-          "created_at": "2026-09-04T00:30:43.772251"
+          "created_at": "2026-09-04T16:57:07.112007"
         }
       ]
     },
@@ -326,16 +326,16 @@
       "amount_inr": 1999.0,
       "recovered_amount": 1999.0,
       "discount_inr": 0.0,
-      "operational_cost_inr": 0.05,
-      "net_roi_inr": 1998.95,
+      "operational_cost_inr": 0.75,
+      "net_roi_inr": 1998.25,
       "status": "recovered",
-      "last_action": "send_email_reminder",
+      "last_action": "send_whatsapp_msg",
       "channels": [
-        "Email"
+        "WhatsApp"
       ],
       "policy_guardrail": "Salary Milestone Backoff Policy",
       "attempts": 1,
-      "duration_ms": 2120.1,
+      "duration_ms": 1452.6,
       "audit_trail_length": 2,
       "audit_log": [
         {
@@ -350,10 +350,10 @@
           "message": "Scenario SCEN-07 initialized: Soft Decline - Insufficient Funds (Salary Milestone)",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:30:49.045771"
+          "created_at": "2026-09-04T16:57:09.388843"
         },
         {
-          "event_triggered": "send_email_reminder",
+          "event_triggered": "send_whatsapp_msg",
           "amount": "1999.0",
           "recovery_status": "pending",
           "customer": {
@@ -361,11 +361,11 @@
             "email": "deepak.patel@gmail.com",
             "contact": "9876543210"
           },
-          "next_contact": "2026-09-07T00:30:49.084121",
-          "message": "Reminder (gentle): Payment of \u20b91,999 for your order is due. Please complete payment to avoid service interruption.",
-          "channel": "email",
+          "next_contact": "2026-09-07T10:00:00",
+          "message": "Hi Deepak Patel, looks like your payment of \u20b91,999 didn't go through due to a temporary bank glitch. Your order is reserved. Tap the link to retry.\n\n\ud83d\udd17 Pay securely: https://rzp.io/l/sim-deepak.patel\n\n(Ref: #RNV-19C2)",
+          "channel": "whatsapp",
           "direction": "outbound",
-          "created_at": "2026-09-04T00:30:49.107641"
+          "created_at": "2026-09-04T16:57:09.792966"
         }
       ]
     },
@@ -377,16 +377,16 @@
       "amount_inr": 7500.0,
       "recovered_amount": 7500.0,
       "discount_inr": 0.0,
-      "operational_cost_inr": 0.0,
-      "net_roi_inr": 7500.0,
+      "operational_cost_inr": 0.75,
+      "net_roi_inr": 7499.25,
       "status": "recovered",
       "last_action": "send_whatsapp_msg",
       "channels": [
-        "System/DB"
+        "WhatsApp"
       ],
       "policy_guardrail": "Salary Milestone Backoff Policy",
       "attempts": 1,
-      "duration_ms": 2114.9,
+      "duration_ms": 1426.7,
       "audit_trail_length": 2,
       "audit_log": [
         {
@@ -401,10 +401,10 @@
           "message": "Scenario SCEN-08 initialized: Soft Decline - High Ticket (> \u20b95,000) Multilingual Alert",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:30:54.371111"
+          "created_at": "2026-09-04T16:57:12.076986"
         },
         {
-          "event_triggered": "get_next_salary_date",
+          "event_triggered": "send_whatsapp_msg",
           "amount": "7500.0",
           "recovery_status": "pending",
           "customer": {
@@ -412,11 +412,11 @@
             "email": "rajesh.gupta@gmail.com",
             "contact": "9876543210"
           },
-          "next_contact": "2026-09-15T10:00:00",
-          "message": "Upcoming salary dates: 2026-09-15, 2026-09-25. Auto-scheduled next follow-up for Sep 15, 2026.",
-          "channel": "system",
-          "direction": "system",
-          "created_at": "2026-09-04T00:30:54.426962"
+          "next_contact": "2026-09-07T10:00:00",
+          "message": "Hi Rajesh Gupta, looks like your payment of \u20b97,500 didn't go through due to a temporary bank glitch. Your order is reserved. Tap the link to retry.\n\n\ud83d\udd17 Pay securely: https://rzp.io/l/sim-rajesh.gupta\n\n(Ref: #RNV-D456)",
+          "channel": "whatsapp",
+          "direction": "outbound",
+          "created_at": "2026-09-04T16:57:12.458630"
         }
       ]
     },
@@ -428,16 +428,16 @@
       "amount_inr": 4200.0,
       "recovered_amount": 4200.0,
       "discount_inr": 0.0,
-      "operational_cost_inr": 0.0,
-      "net_roi_inr": 4200.0,
+      "operational_cost_inr": 0.75,
+      "net_roi_inr": 4199.25,
       "status": "recovered",
       "last_action": "send_whatsapp_msg",
       "channels": [
-        "System/DB"
+        "WhatsApp"
       ],
       "policy_guardrail": "Salary Milestone Backoff Policy",
       "attempts": 1,
-      "duration_ms": 2099.5,
+      "duration_ms": 1423.7,
       "audit_trail_length": 2,
       "audit_log": [
         {
@@ -452,10 +452,10 @@
           "message": "Scenario SCEN-09 initialized: Soft Decline - Daily UPI Transaction Limit Exceeded",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:30:59.695595"
+          "created_at": "2026-09-04T16:57:14.816065"
         },
         {
-          "event_triggered": "get_next_salary_date",
+          "event_triggered": "send_whatsapp_msg",
           "amount": "4200.0",
           "recovery_status": "pending",
           "customer": {
@@ -463,11 +463,11 @@
             "email": "neha.verma@gmail.com",
             "contact": "9876543210"
           },
-          "next_contact": "2026-09-15T10:00:00",
-          "message": "Upcoming salary dates: 2026-09-15, 2026-09-25. Auto-scheduled next follow-up for Sep 15, 2026.",
-          "channel": "system",
-          "direction": "system",
-          "created_at": "2026-09-04T00:30:59.756848"
+          "next_contact": "2026-09-07T10:00:00",
+          "message": "Hi Neha Verma, looks like your payment of \u20b94,200 didn't go through due to a temporary bank glitch. Your order is reserved. Tap the link to retry.\n\n\ud83d\udd17 Pay securely: https://rzp.io/l/sim-neha.verma\n\n(Ref: #RNV-0216)",
+          "channel": "whatsapp",
+          "direction": "outbound",
+          "created_at": "2026-09-04T16:57:15.204465"
         }
       ]
     },
@@ -479,16 +479,16 @@
       "amount_inr": 2100.0,
       "recovered_amount": 2100.0,
       "discount_inr": 0.0,
-      "operational_cost_inr": 0.0,
-      "net_roi_inr": 2100.0,
+      "operational_cost_inr": 0.75,
+      "net_roi_inr": 2099.25,
       "status": "recovered",
       "last_action": "send_whatsapp_msg",
       "channels": [
-        "System/DB"
+        "WhatsApp"
       ],
       "policy_guardrail": "Salary Milestone Backoff Policy",
       "attempts": 1,
-      "duration_ms": 2180.5,
+      "duration_ms": 1443.1,
       "audit_trail_length": 2,
       "audit_log": [
         {
@@ -503,10 +503,10 @@
           "message": "Scenario SCEN-10 initialized: Soft Decline - Banking Switch Momentary Timeout",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:31:05.020221"
+          "created_at": "2026-09-04T16:57:17.478910"
         },
         {
-          "event_triggered": "get_next_salary_date",
+          "event_triggered": "send_whatsapp_msg",
           "amount": "2100.0",
           "recovery_status": "pending",
           "customer": {
@@ -514,11 +514,11 @@
             "email": "siddharth.sen@gmail.com",
             "contact": "9876543210"
           },
-          "next_contact": "2026-09-15T10:00:00",
-          "message": "Upcoming salary dates: 2026-09-15, 2026-09-25. Auto-scheduled next follow-up for Sep 15, 2026.",
-          "channel": "system",
-          "direction": "system",
-          "created_at": "2026-09-04T00:31:05.071019"
+          "next_contact": "2026-09-07T10:00:00",
+          "message": "Hi Siddharth Sen, looks like your payment of \u20b92,100 didn't go through due to a temporary bank glitch. Your order is reserved. Tap the link to retry.\n\n\ud83d\udd17 Pay securely: https://rzp.io/l/sim-siddharth.sen\n\n(Ref: #RNV-D574)",
+          "channel": "whatsapp",
+          "direction": "outbound",
+          "created_at": "2026-09-04T16:57:17.860675"
         }
       ]
     },
@@ -530,16 +530,16 @@
       "amount_inr": 499.0,
       "recovered_amount": 499.0,
       "discount_inr": 0.0,
-      "operational_cost_inr": 0.0,
-      "net_roi_inr": 499.0,
+      "operational_cost_inr": 0.75,
+      "net_roi_inr": 498.25,
       "status": "recovered",
       "last_action": "send_whatsapp_msg",
       "channels": [
-        "System/DB"
+        "WhatsApp"
       ],
       "policy_guardrail": "Salary Milestone Backoff Policy",
       "attempts": 1,
-      "duration_ms": 2103.8,
+      "duration_ms": 1432.1,
       "audit_trail_length": 2,
       "audit_log": [
         {
@@ -554,10 +554,10 @@
           "message": "Scenario SCEN-11 initialized: Soft Decline - Low Ticket Micro-order",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:31:10.550545"
+          "created_at": "2026-09-04T16:57:20.243572"
         },
         {
-          "event_triggered": "get_next_salary_date",
+          "event_triggered": "send_whatsapp_msg",
           "amount": "499.0",
           "recovery_status": "pending",
           "customer": {
@@ -565,11 +565,11 @@
             "email": "tanvi.joshi@gmail.com",
             "contact": "9876543210"
           },
-          "next_contact": "2026-09-15T10:00:00",
-          "message": "Upcoming salary dates: 2026-09-15, 2026-09-25. Auto-scheduled next follow-up for Sep 15, 2026.",
-          "channel": "system",
-          "direction": "system",
-          "created_at": "2026-09-04T00:31:10.611791"
+          "next_contact": "2026-09-07T10:00:00",
+          "message": "Hi Tanvi Joshi, looks like your payment of \u20b9499 didn't go through due to a temporary bank glitch. Your order is reserved. Tap the link to retry.\n\n\ud83d\udd17 Pay securely: https://rzp.io/l/sim-tanvi.joshi\n\n(Ref: #RNV-A03F)",
+          "channel": "whatsapp",
+          "direction": "outbound",
+          "created_at": "2026-09-04T16:57:20.634198"
         }
       ]
     },
@@ -581,16 +581,16 @@
       "amount_inr": 1499.0,
       "recovered_amount": 1499.0,
       "discount_inr": 0.0,
-      "operational_cost_inr": 0.0,
-      "net_roi_inr": 1499.0,
+      "operational_cost_inr": 0.75,
+      "net_roi_inr": 1498.25,
       "status": "recovered",
       "last_action": "send_whatsapp_msg",
       "channels": [
-        "System/DB"
+        "WhatsApp"
       ],
       "policy_guardrail": "Salary Milestone Backoff Policy",
       "attempts": 1,
-      "duration_ms": 2110.1,
+      "duration_ms": 1443.5,
       "audit_trail_length": 2,
       "audit_log": [
         {
@@ -605,10 +605,10 @@
           "message": "Scenario SCEN-12 initialized: Soft Decline - 3DS OTP Authentication Drop-off",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:31:15.837857"
+          "created_at": "2026-09-04T16:57:23.006396"
         },
         {
-          "event_triggered": "get_next_salary_date",
+          "event_triggered": "send_whatsapp_msg",
           "amount": "1499.0",
           "recovery_status": "pending",
           "customer": {
@@ -616,11 +616,11 @@
             "email": "manish.reddy@gmail.com",
             "contact": "9876543210"
           },
-          "next_contact": "2026-09-15T10:00:00",
-          "message": "Upcoming salary dates: 2026-09-15, 2026-09-25. Auto-scheduled next follow-up for Sep 15, 2026.",
-          "channel": "system",
-          "direction": "system",
-          "created_at": "2026-09-04T00:31:15.895253"
+          "next_contact": "2026-09-07T10:00:00",
+          "message": "Hi Manish Reddy, looks like your payment of \u20b91,499 didn't go through due to a temporary bank glitch. Your order is reserved. Tap the link to retry.\n\n\ud83d\udd17 Pay securely: https://rzp.io/l/sim-manish.reddy\n\n(Ref: #RNV-97F9)",
+          "channel": "whatsapp",
+          "direction": "outbound",
+          "created_at": "2026-09-04T16:57:23.395634"
         }
       ]
     },
@@ -632,16 +632,16 @@
       "amount_inr": 18500.0,
       "recovered_amount": 18500.0,
       "discount_inr": 0.0,
-      "operational_cost_inr": 0.0,
-      "net_roi_inr": 18500.0,
+      "operational_cost_inr": 0.75,
+      "net_roi_inr": 18499.25,
       "status": "recovered",
       "last_action": "send_whatsapp_msg",
       "channels": [
-        "System/DB"
+        "WhatsApp"
       ],
       "policy_guardrail": "RBI 2026 E-Mandate AFA (OTP) Rule",
       "attempts": 1,
-      "duration_ms": 2127.6,
+      "duration_ms": 1418.2,
       "audit_trail_length": 2,
       "audit_log": [
         {
@@ -656,10 +656,10 @@
           "message": "Scenario SCEN-13 initialized: RBI e-Mandate > \u20b915,000 - Executive Coaching Subscription",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:31:21.194355"
+          "created_at": "2026-09-04T16:57:25.669798"
         },
         {
-          "event_triggered": "create_payment_link",
+          "event_triggered": "send_whatsapp_msg",
           "amount": "18500.0",
           "recovery_status": "pending",
           "customer": {
@@ -667,11 +667,11 @@
             "email": "sameer.kulkarni@gmail.com",
             "contact": "9876543210"
           },
-          "next_contact": "2026-09-07T00:31:21.230071",
-          "message": "Secure Razorpay payment link generated: https://rzp.io/l/sim-sameer.kulkarni",
-          "channel": "link",
+          "next_contact": "2026-09-07T10:00:00",
+          "message": "Your auto-debit for \u20b918,500 failed. Under RBI rules, amounts over \u20b915,000 require an OTP. Please click the link to authorize.\n\n\ud83d\udd17 Pay securely: https://rzp.io/l/mandate-reauth-sameer.kulkarni\n\n(Ref: #RNV-5E95)",
+          "channel": "whatsapp",
           "direction": "outbound",
-          "created_at": "2026-09-04T00:31:21.246811"
+          "created_at": "2026-09-04T16:57:26.044330"
         }
       ]
     },
@@ -683,16 +683,16 @@
       "amount_inr": 24000.0,
       "recovered_amount": 24000.0,
       "discount_inr": 0.0,
-      "operational_cost_inr": 0.0,
-      "net_roi_inr": 24000.0,
+      "operational_cost_inr": 0.75,
+      "net_roi_inr": 23999.25,
       "status": "recovered",
       "last_action": "send_whatsapp_msg",
       "channels": [
-        "System/DB"
+        "WhatsApp"
       ],
       "policy_guardrail": "RBI 2026 E-Mandate AFA (OTP) Rule",
       "attempts": 1,
-      "duration_ms": 2105.0,
+      "duration_ms": 1416.4,
       "audit_trail_length": 2,
       "audit_log": [
         {
@@ -707,10 +707,10 @@
           "message": "Scenario SCEN-14 initialized: RBI e-Mandate > \u20b915,000 - SaaS Enterprise Annual Tier",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:31:26.523936"
+          "created_at": "2026-09-04T16:57:28.344832"
         },
         {
-          "event_triggered": "create_payment_link",
+          "event_triggered": "send_whatsapp_msg",
           "amount": "24000.0",
           "recovery_status": "pending",
           "customer": {
@@ -718,11 +718,11 @@
             "email": "preeti.mehra@enterprise.in",
             "contact": "9876543210"
           },
-          "next_contact": "2026-09-07T00:31:26.560170",
-          "message": "Secure Razorpay payment link generated: https://rzp.io/l/sim-preeti.mehra",
-          "channel": "link",
+          "next_contact": "2026-09-07T10:00:00",
+          "message": "Your auto-debit for \u20b924,000 failed. Under RBI rules, amounts over \u20b915,000 require an OTP. Please click the link to authorize.\n\n\ud83d\udd17 Pay securely: https://rzp.io/l/mandate-reauth-preeti.mehra\n\n(Ref: #RNV-2946)",
+          "channel": "whatsapp",
           "direction": "outbound",
-          "created_at": "2026-09-04T00:31:26.577812"
+          "created_at": "2026-09-04T16:57:28.721086"
         }
       ]
     },
@@ -734,16 +734,16 @@
       "amount_inr": 999.0,
       "recovered_amount": 999.0,
       "discount_inr": 0.0,
-      "operational_cost_inr": 0.0,
-      "net_roi_inr": 999.0,
+      "operational_cost_inr": 0.75,
+      "net_roi_inr": 998.25,
       "status": "recovered",
       "last_action": "send_whatsapp_msg",
       "channels": [
-        "System/DB"
+        "WhatsApp"
       ],
       "policy_guardrail": "Standard Bounded Recovery Policy",
       "attempts": 1,
-      "duration_ms": 2099.2,
+      "duration_ms": 1428.1,
       "audit_trail_length": 2,
       "audit_log": [
         {
@@ -758,10 +758,10 @@
           "message": "Scenario SCEN-15 initialized: RBI e-Mandate < \u20b915,000 - Frictionless Pro Plan",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:31:31.847480"
+          "created_at": "2026-09-04T16:57:30.995938"
         },
         {
-          "event_triggered": "get_next_salary_date",
+          "event_triggered": "send_whatsapp_msg",
           "amount": "999.0",
           "recovery_status": "pending",
           "customer": {
@@ -769,11 +769,11 @@
             "email": "kavita.rao@gmail.com",
             "contact": "9876543210"
           },
-          "next_contact": "2026-09-15T10:00:00",
-          "message": "Upcoming salary dates: 2026-09-15, 2026-09-25. Auto-scheduled next follow-up for Sep 15, 2026.",
-          "channel": "system",
-          "direction": "system",
-          "created_at": "2026-09-04T00:31:31.900914"
+          "next_contact": "2026-09-07T10:00:00",
+          "message": "Hi Kavita Rao, looks like your payment of \u20b9999 didn't go through due to a temporary bank glitch. Your order is reserved. Tap the link to retry.\n\n\ud83d\udd17 Pay securely: https://rzp.io/l/mandate-reauth-kavita.rao\n\n(Ref: #RNV-3D28)",
+          "channel": "whatsapp",
+          "direction": "outbound",
+          "created_at": "2026-09-04T16:57:31.385575"
         }
       ]
     },
@@ -794,7 +794,7 @@
       ],
       "policy_guardrail": "Standard Bounded Recovery Policy",
       "attempts": 1,
-      "duration_ms": 2109.5,
+      "duration_ms": 1414.2,
       "audit_trail_length": 2,
       "audit_log": [
         {
@@ -809,7 +809,7 @@
           "message": "Scenario SCEN-16 initialized: Subscription Cancelled with Installment Due",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:31:37.378570"
+          "created_at": "2026-09-04T16:57:33.657946"
         },
         {
           "event_triggered": "send_whatsapp_msg",
@@ -820,11 +820,11 @@
             "email": "alok.mathur@gmail.com",
             "contact": "9876543210"
           },
-          "next_contact": "2026-09-07T00:31:37.431596",
-          "message": "Your auto-pay was cancelled, but your \u20b96,000 instalment is still due. Would you like to settle manually? (Ref: #RNV-C7B8)",
+          "next_contact": "2026-09-07T10:00:00",
+          "message": "Your auto-pay was cancelled, but your \u20b96,000 instalment is still due. Would you like to settle manually?\n\n\ud83d\udd17 Pay securely: https://rzp.io/l/mandate-reauth-alok.mathur\n\n(Ref: #RNV-C7B8)",
           "channel": "whatsapp",
           "direction": "outbound",
-          "created_at": "2026-09-04T00:31:37.440260"
+          "created_at": "2026-09-04T16:57:34.034652"
         }
       ]
     },
@@ -836,16 +836,16 @@
       "amount_inr": 1999.0,
       "recovered_amount": 1999.0,
       "discount_inr": 0.0,
-      "operational_cost_inr": 0.0,
-      "net_roi_inr": 1999.0,
+      "operational_cost_inr": 0.75,
+      "net_roi_inr": 1998.25,
       "status": "recovered",
       "last_action": "send_whatsapp_msg",
       "channels": [
-        "System/DB"
+        "WhatsApp"
       ],
       "policy_guardrail": "Standard Bounded Recovery Policy",
       "attempts": 1,
-      "duration_ms": 2169.6,
+      "duration_ms": 1493.1,
       "audit_trail_length": 2,
       "audit_log": [
         {
@@ -860,10 +860,10 @@
           "message": "Scenario SCEN-17 initialized: Halted Subscription - Card Reissuance / Mandate Break",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:31:42.703173"
+          "created_at": "2026-09-04T16:57:36.320499"
         },
         {
-          "event_triggered": "create_payment_link",
+          "event_triggered": "send_whatsapp_msg",
           "amount": "1999.0",
           "recovery_status": "pending",
           "customer": {
@@ -871,11 +871,11 @@
             "email": "bhavna.s@gmail.com",
             "contact": "9876543210"
           },
-          "next_contact": "2026-09-07T00:31:42.757994",
-          "message": "Secure Razorpay payment link generated: https://rzp.io/l/sim-bhavna.s",
-          "channel": "link",
+          "next_contact": "2026-09-07T10:00:00",
+          "message": "Hi Bhavna Swaminathan, your payment of \u20b91,999 on your RuPay (\u2022\u20224242) was declined. Tap the link to update your payment method or pay with UPI. (Bank RRN: 224752159811)\n\n\ud83d\udd17 Pay securely: https://rzp.io/l/mandate-reauth-bhavna.s\n\n(Ref: #RNV-E8EF)",
+          "channel": "whatsapp",
           "direction": "outbound",
-          "created_at": "2026-09-04T00:31:42.783551"
+          "created_at": "2026-09-04T16:57:36.734060"
         }
       ]
     },
@@ -887,16 +887,16 @@
       "amount_inr": 35000.0,
       "recovered_amount": 35000.0,
       "discount_inr": 0.0,
-      "operational_cost_inr": 0.0,
-      "net_roi_inr": 35000.0,
+      "operational_cost_inr": 0.75,
+      "net_roi_inr": 34999.25,
       "status": "recovered",
       "last_action": "send_whatsapp_msg",
       "channels": [
-        "System/DB"
+        "WhatsApp"
       ],
       "policy_guardrail": "RBI 2026 E-Mandate AFA (OTP) Rule",
       "attempts": 1,
-      "duration_ms": 2235.7,
+      "duration_ms": 1484.7,
       "audit_trail_length": 2,
       "audit_log": [
         {
@@ -911,10 +911,10 @@
           "message": "Scenario SCEN-18 initialized: RBI e-Mandate \u20b91 Lakh Limit - Health Insurance Premium",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:31:48.029887"
+          "created_at": "2026-09-04T16:57:39.083587"
         },
         {
-          "event_triggered": "create_payment_link",
+          "event_triggered": "send_whatsapp_msg",
           "amount": "35000.0",
           "recovery_status": "pending",
           "customer": {
@@ -922,11 +922,11 @@
             "email": "sunil.iyengar@medcare.org",
             "contact": "9876543210"
           },
-          "next_contact": "2026-09-07T00:31:48.078190",
-          "message": "Secure Razorpay payment link generated: https://rzp.io/l/sim-sunil.iyengar",
-          "channel": "link",
+          "next_contact": "2026-09-07T10:00:00",
+          "message": "Your auto-debit for \u20b935,000 failed. Under RBI rules, amounts over \u20b915,000 require an OTP. Please click the link to authorize.\n\n\ud83d\udd17 Pay securely: https://rzp.io/l/mandate-reauth-sunil.iyengar\n\n(Ref: #RNV-9D26)",
+          "channel": "whatsapp",
           "direction": "outbound",
-          "created_at": "2026-09-04T00:31:48.137335"
+          "created_at": "2026-09-04T16:57:39.494920"
         }
       ]
     },
@@ -936,10 +936,10 @@
       "title": "Abandoned Checkout - Dropped at OTP Stage",
       "customer_name": "Pooja Hegde",
       "amount_inr": 1899.0,
-      "recovered_amount": 1709.1,
-      "discount_inr": 189.9,
+      "recovered_amount": 1899.0,
+      "discount_inr": 0.0,
       "operational_cost_inr": 0.75,
-      "net_roi_inr": 1518.45,
+      "net_roi_inr": 1898.25,
       "status": "recovered",
       "last_action": "send_whatsapp_msg",
       "channels": [
@@ -947,7 +947,7 @@
       ],
       "policy_guardrail": "Bounded Concession Policy (5-30%)",
       "attempts": 1,
-      "duration_ms": 2125.5,
+      "duration_ms": 1461.3,
       "audit_trail_length": 2,
       "audit_log": [
         {
@@ -962,7 +962,7 @@
           "message": "Scenario SCEN-19 initialized: Abandoned Checkout - Dropped at OTP Stage",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:31:53.558358"
+          "created_at": "2026-09-04T16:57:41.794801"
         },
         {
           "event_triggered": "send_whatsapp_msg",
@@ -973,11 +973,11 @@
             "email": "pooja.hegde@gmail.com",
             "contact": "9876543210"
           },
-          "next_contact": "2026-09-07T00:31:53.595098",
-          "message": "You left something in your cart! Complete your checkout now and enjoy a 10% discount. Click the payment link to complete your order. (Ref: #RNV-7ECE)",
+          "next_contact": "2026-09-07T10:00:00",
+          "message": "You left something in your cart! Complete your checkout now and enjoy a 10% discount. Click the payment link to complete your order.\n\n\ud83d\udd17 Pay securely: https://rzp.io/l/sim-pooja.hegde\n\n(Ref: #RNV-7ECE)",
           "channel": "whatsapp",
           "direction": "outbound",
-          "created_at": "2026-09-04T00:31:53.623095"
+          "created_at": "2026-09-04T16:57:42.215820"
         }
       ]
     },
@@ -987,10 +987,10 @@
       "title": "Abandoned Checkout - Dropped at Method Selection",
       "customer_name": "Varun Tej",
       "amount_inr": 3499.0,
-      "recovered_amount": 3149.1,
-      "discount_inr": 349.9,
+      "recovered_amount": 3499.0,
+      "discount_inr": 0.0,
       "operational_cost_inr": 0.75,
-      "net_roi_inr": 2798.45,
+      "net_roi_inr": 3498.25,
       "status": "recovered",
       "last_action": "send_whatsapp_msg",
       "channels": [
@@ -998,7 +998,7 @@
       ],
       "policy_guardrail": "Bounded Concession Policy (5-30%)",
       "attempts": 1,
-      "duration_ms": 2308.3,
+      "duration_ms": 1439.0,
       "audit_trail_length": 2,
       "audit_log": [
         {
@@ -1013,7 +1013,7 @@
           "message": "Scenario SCEN-20 initialized: Abandoned Checkout - Dropped at Method Selection",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:31:58.883658"
+          "created_at": "2026-09-04T16:57:44.495642"
         },
         {
           "event_triggered": "send_whatsapp_msg",
@@ -1024,11 +1024,11 @@
             "email": "varun.tej@gmail.com",
             "contact": "9876543210"
           },
-          "next_contact": "2026-09-07T00:31:58.937705",
-          "message": "You left something in your cart! Complete your checkout now and enjoy a 10% discount. Click the payment link to complete your order. (Ref: #RNV-307A)",
+          "next_contact": "2026-09-07T10:00:00",
+          "message": "You left something in your cart! Complete your checkout now and enjoy a 10% discount. Click the payment link to complete your order.\n\n\ud83d\udd17 Pay securely: https://rzp.io/l/sim-varun.tej\n\n(Ref: #RNV-307A)",
           "channel": "whatsapp",
           "direction": "outbound",
-          "created_at": "2026-09-04T00:31:58.974894"
+          "created_at": "2026-09-04T16:57:44.888887"
         }
       ]
     },
@@ -1038,18 +1038,18 @@
       "title": "Abandoned Checkout - High Value Electronics Cart",
       "customer_name": "Nikhil Agarwal",
       "amount_inr": 11999.0,
-      "recovered_amount": 10799.1,
-      "discount_inr": 1199.9,
-      "operational_cost_inr": 0.0,
-      "net_roi_inr": 9599.2,
+      "recovered_amount": 11999.0,
+      "discount_inr": 0.0,
+      "operational_cost_inr": 0.75,
+      "net_roi_inr": 11998.25,
       "status": "recovered",
       "last_action": "send_whatsapp_msg",
       "channels": [
-        "System/DB"
+        "WhatsApp"
       ],
       "policy_guardrail": "Bounded Concession Policy (5-30%)",
       "attempts": 1,
-      "duration_ms": 2159.1,
+      "duration_ms": 1433.9,
       "audit_trail_length": 2,
       "audit_log": [
         {
@@ -1064,10 +1064,10 @@
           "message": "Scenario SCEN-21 initialized: Abandoned Checkout - High Value Electronics Cart",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:32:04.412023"
+          "created_at": "2026-09-04T16:57:47.177801"
         },
         {
-          "event_triggered": "create_payment_link",
+          "event_triggered": "send_whatsapp_msg",
           "amount": "11999.0",
           "recovery_status": "pending",
           "customer": {
@@ -1075,11 +1075,11 @@
             "email": "nikhil.agarwal@gmail.com",
             "contact": "9876543210"
           },
-          "next_contact": "2026-09-07T00:32:04.446830",
-          "message": "Secure Razorpay payment link generated: https://rzp.io/l/sim-nikhil.agarwal",
-          "channel": "link",
+          "next_contact": "2026-09-07T10:00:00",
+          "message": "You left something in your cart! Complete your checkout now and enjoy a 10% discount. Click the payment link to complete your order.\n\n\ud83d\udd17 Pay securely: https://rzp.io/l/sim-nikhil.agarwal\n\n(Ref: #RNV-8055)",
+          "channel": "whatsapp",
           "direction": "outbound",
-          "created_at": "2026-09-04T00:32:04.464598"
+          "created_at": "2026-09-04T16:57:47.582805"
         }
       ]
     },
@@ -1089,18 +1089,18 @@
       "title": "Abandoned Checkout - Low Ticket Quick Win",
       "customer_name": "Sneha Ghosh",
       "amount_inr": 699.0,
-      "recovered_amount": 629.1,
-      "discount_inr": 69.9,
-      "operational_cost_inr": 0.0,
-      "net_roi_inr": 559.2,
+      "recovered_amount": 699.0,
+      "discount_inr": 0.0,
+      "operational_cost_inr": 0.75,
+      "net_roi_inr": 698.25,
       "status": "recovered",
       "last_action": "send_whatsapp_msg",
       "channels": [
-        "System/DB"
+        "WhatsApp"
       ],
       "policy_guardrail": "Bounded Concession Policy (5-30%)",
       "attempts": 1,
-      "duration_ms": 2100.7,
+      "duration_ms": 1424.5,
       "audit_trail_length": 2,
       "audit_log": [
         {
@@ -1115,10 +1115,10 @@
           "message": "Scenario SCEN-22 initialized: Abandoned Checkout - Low Ticket Quick Win",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:32:09.837278"
+          "created_at": "2026-09-04T16:57:49.939541"
         },
         {
-          "event_triggered": "create_payment_link",
+          "event_triggered": "send_whatsapp_msg",
           "amount": "699.0",
           "recovery_status": "pending",
           "customer": {
@@ -1126,11 +1126,11 @@
             "email": "sneha.ghosh@gmail.com",
             "contact": "9876543210"
           },
-          "next_contact": "2026-09-07T00:32:09.877829",
-          "message": "Secure Razorpay payment link generated: https://rzp.io/l/sim-sneha.ghosh",
-          "channel": "link",
+          "next_contact": "2026-09-07T10:00:00",
+          "message": "You left something in your cart! Complete your checkout now and enjoy a 10% discount. Click the payment link to complete your order.\n\n\ud83d\udd17 Pay securely: https://rzp.io/l/sim-sneha.ghosh\n\n(Ref: #RNV-950E)",
+          "channel": "whatsapp",
           "direction": "outbound",
-          "created_at": "2026-09-04T00:32:09.899008"
+          "created_at": "2026-09-04T16:57:50.318668"
         }
       ]
     },
@@ -1151,8 +1151,8 @@
       ],
       "policy_guardrail": "Bounded Concession Policy (5-30%)",
       "attempts": 1,
-      "duration_ms": 4254.8,
-      "audit_trail_length": 3,
+      "duration_ms": 14275.4,
+      "audit_trail_length": 4,
       "audit_log": [
         {
           "event_triggered": "batch_ingest",
@@ -1166,7 +1166,7 @@
           "message": "Scenario SCEN-23 initialized: Abandoned Checkout - Inbound Customer Negotiation",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:32:15.126574"
+          "created_at": "2026-09-04T16:57:52.705477"
         },
         {
           "event_triggered": "customer_reply",
@@ -1181,7 +1181,22 @@
           "message": "Is there any extra discount? It feels too expensive.",
           "channel": "whatsapp",
           "direction": "inbound",
-          "created_at": "2026-09-04T00:32:15.159337"
+          "created_at": "2026-09-04T16:57:52.754595"
+        },
+        {
+          "event_triggered": "create_payment_link",
+          "amount": "4500.0",
+          "recovery_status": "pending",
+          "customer": {
+            "name": "Aditya Roy",
+            "email": "aditya.roy@gmail.com",
+            "contact": "9876543210"
+          },
+          "next_contact": "2026-09-07T10:00:00",
+          "message": "Secure Razorpay payment link generated (15% discount applied, payable \u20b93,825): https://rzp.io/l/sim-aditya.roy",
+          "channel": "link",
+          "direction": "outbound",
+          "created_at": "2026-09-04T16:58:01.337869"
         },
         {
           "event_triggered": "send_whatsapp_msg",
@@ -1192,11 +1207,11 @@
             "email": "aditya.roy@gmail.com",
             "contact": "9876543210"
           },
-          "next_contact": "2026-09-07T00:32:17.324008",
-          "message": "Hi Aditya, we understand your concern about the cost. Unfortunately, there are no additional discounts available for this order at the moment. However, we truly value you as a customer and want to ensure you get the best experience. Could you please share what specifically feels expensive? This will help us assist you better. Thank you!",
+          "next_contact": "2026-09-07T10:00:00",
+          "message": "Hi Aditya, we\u2019ve applied a **15% discount** on your order\u2014now just \u20b93,825. Here\u2019s your secure payment link: https://rzp.io/l/sim-aditya.roy. This offer is valid for the next 24 hours. Let me know if you need further assistance!",
           "channel": "whatsapp",
           "direction": "outbound",
-          "created_at": "2026-09-04T00:32:17.333185"
+          "created_at": "2026-09-04T16:58:05.924699"
         }
       ]
     },
@@ -1217,7 +1232,7 @@
       ],
       "policy_guardrail": "Max 3-Touch Stopping Rule",
       "attempts": 3,
-      "duration_ms": 2075.3,
+      "duration_ms": 1116.0,
       "audit_trail_length": 2,
       "audit_log": [
         {
@@ -1232,7 +1247,7 @@
           "message": "Scenario SCEN-24 initialized: Abandoned Checkout - Unresponsive Customer (Stopping Rule)",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:32:22.543894"
+          "created_at": "2026-09-04T16:58:08.270252"
         },
         {
           "event_triggered": "escalate_to_human",
@@ -1244,10 +1259,10 @@
             "contact": "9876543210"
           },
           "next_contact": null,
-          "message": "Escalated to human support. Reason: Max attempts (3) reached. Context: Name=Meera Nambiar, Amount=\u20b92,199, Case=abandoned_checkout, Last Action=None",
+          "message": "Escalated to human ops: Max attempts (3) reached. Context: Name=Meera Nambiar, Amount=\u20b92,199, Case=abandoned_checkout, Last Action=None",
           "channel": "system",
-          "direction": "system",
-          "created_at": "2026-09-04T00:32:22.598471"
+          "direction": "internal",
+          "created_at": "2026-09-04T16:58:08.346842"
         }
       ]
     },
@@ -1268,7 +1283,7 @@
       ],
       "policy_guardrail": "Standard Bounded Recovery Policy",
       "attempts": 1,
-      "duration_ms": 2191.8,
+      "duration_ms": 1208.4,
       "audit_trail_length": 2,
       "audit_log": [
         {
@@ -1283,7 +1298,7 @@
           "message": "Scenario SCEN-25 initialized: B2B Overdue Invoice - 14 Days Overdue Urgent Chaser",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:32:27.856242"
+          "created_at": "2026-09-04T16:58:10.623082"
         },
         {
           "event_triggered": "create_payment_link",
@@ -1294,11 +1309,11 @@
             "email": "accounts@apexlogistics.in",
             "contact": "9876543210"
           },
-          "next_contact": "2026-09-07T00:32:27.934654",
+          "next_contact": "2026-09-07T10:00:00",
           "message": "Secure Razorpay payment link generated: https://rzp.io/l/sim-accounts",
           "channel": "link",
           "direction": "outbound",
-          "created_at": "2026-09-04T00:32:27.969134"
+          "created_at": "2026-09-04T16:58:10.742894"
         }
       ]
     },
@@ -1319,7 +1334,7 @@
       ],
       "policy_guardrail": "Standard Bounded Recovery Policy",
       "attempts": 0,
-      "duration_ms": 2055.4,
+      "duration_ms": 1082.0,
       "audit_trail_length": 2,
       "audit_log": [
         {
@@ -1334,7 +1349,7 @@
           "message": "Scenario SCEN-26 initialized: B2B Overdue Invoice - Partial Payment Received (\u20b930k of \u20b960k)",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:32:33.289674"
+          "created_at": "2026-09-04T16:58:13.184302"
         },
         {
           "event_triggered": "partial_payment_received",
@@ -1345,7 +1360,7 @@
             "email": "billing@ziontech.io",
             "contact": "9876543210"
           },
-          "next_contact": "2026-09-07T00:32:33.316714"
+          "next_contact": "2026-09-07T16:58:13.225009"
         }
       ]
     },
@@ -1366,7 +1381,7 @@
       ],
       "policy_guardrail": "Promise-to-Pay Dunning Pause",
       "attempts": 1,
-      "duration_ms": 4270.7,
+      "duration_ms": 3845.0,
       "audit_trail_length": 3,
       "audit_log": [
         {
@@ -1381,7 +1396,7 @@
           "message": "Scenario SCEN-27 initialized: B2B Overdue Invoice - Promise-to-Pay (PTP) Logging",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:32:38.614092"
+          "created_at": "2026-09-04T16:58:15.537607"
         },
         {
           "event_triggered": "customer_reply",
@@ -1396,7 +1411,7 @@
           "message": "Our CFO will release payments on next Friday 2026-09-11. Please pause reminders until then.",
           "channel": "whatsapp",
           "direction": "inbound",
-          "created_at": "2026-09-04T00:32:38.676839"
+          "created_at": "2026-09-04T16:58:15.591727"
         },
         {
           "event_triggered": "log_promise_to_pay",
@@ -1407,11 +1422,11 @@
             "email": "kiran@raosystems.com",
             "contact": "9876543210"
           },
-          "next_contact": "2026-09-11T00:00:00",
+          "next_contact": "2026-09-11T10:00:00",
           "message": "Promise to pay recorded for Sep 11, 2026. Confirmation sent to customer.",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:32:40.882743"
+          "created_at": "2026-09-04T16:58:18.343624"
         }
       ]
     },
@@ -1432,7 +1447,7 @@
       ],
       "policy_guardrail": "TRAI/RBI Consent Opt-Out Rule",
       "attempts": 0,
-      "duration_ms": 2030.5,
+      "duration_ms": 1048.7,
       "audit_trail_length": 2,
       "audit_log": [
         {
@@ -1447,7 +1462,7 @@
           "message": "Scenario SCEN-28 initialized: Compliance Stopping Rule - WhatsApp 'STOP' Opt-Out",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:32:46.094483"
+          "created_at": "2026-09-04T16:58:20.762013"
         },
         {
           "event_triggered": "customer_opt_out",
@@ -1470,16 +1485,16 @@
       "amount_inr": 8900.0,
       "recovered_amount": 0.0,
       "discount_inr": 0.0,
-      "operational_cost_inr": 0.0,
-      "net_roi_inr": 0.0,
+      "operational_cost_inr": 0.75,
+      "net_roi_inr": -0.75,
       "status": "escalated",
-      "last_action": "get_voice_call",
+      "last_action": "send_whatsapp_msg",
       "channels": [
-        "System/DB"
+        "WhatsApp"
       ],
       "policy_guardrail": "Dispute Freeze Kill-Switch",
       "attempts": 0,
-      "duration_ms": 2105.7,
+      "duration_ms": 1454.8,
       "audit_trail_length": 2,
       "audit_log": [
         {
@@ -1494,10 +1509,10 @@
           "message": "Scenario SCEN-29 initialized: Compliance Stopping Rule - Payment Dispute Triggered",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:32:51.516297"
+          "created_at": "2026-09-04T16:58:23.117345"
         },
         {
-          "event_triggered": "create_payment_link",
+          "event_triggered": "send_whatsapp_msg",
           "amount": "8900.0",
           "recovery_status": "escalated",
           "customer": {
@@ -1505,11 +1520,11 @@
             "email": "geeta.raman@gmail.com",
             "contact": "9876543210"
           },
-          "next_contact": "2026-09-07T00:32:51.570750",
-          "message": "Secure Razorpay payment link generated: https://rzp.io/l/sim-geeta.raman",
-          "channel": "link",
+          "next_contact": "2026-09-07T10:00:00",
+          "message": "Hi Geeta Raman, your payment of \u20b98,900 on your Visa (\u2022\u20224242) was declined. Tap the link to update your payment method or pay with UPI. (Bank RRN: 225045791463)\n\n\ud83d\udd17 Pay securely: https://rzp.io/l/sim-geeta.raman\n\n(Ref: #RNV-4937)",
+          "channel": "whatsapp",
           "direction": "outbound",
-          "created_at": "2026-09-04T00:32:51.589402"
+          "created_at": "2026-09-04T16:58:23.540533"
         }
       ]
     },
@@ -1530,7 +1545,7 @@
       ],
       "policy_guardrail": "TRAI/RBI Consent Opt-Out Rule",
       "attempts": 0,
-      "duration_ms": 4895.7,
+      "duration_ms": 3689.3,
       "audit_trail_length": 3,
       "audit_log": [
         {
@@ -1545,7 +1560,7 @@
           "message": "Scenario SCEN-30 initialized: Compliance & Safety Gate - Date Sanity & Hostility Escalation",
           "channel": "system",
           "direction": "system",
-          "created_at": "2026-09-04T00:32:56.842029"
+          "created_at": "2026-09-04T16:58:25.881838"
         },
         {
           "event_triggered": "customer_reply",
@@ -1560,7 +1575,7 @@
           "message": "Stop harassing me. I will pay you in 2038.",
           "channel": "whatsapp",
           "direction": "inbound",
-          "created_at": "2026-09-04T00:32:56.873921"
+          "created_at": "2026-09-04T16:58:25.922941"
         },
         {
           "event_triggered": "escalate_to_human",
@@ -1572,10 +1587,10 @@
             "contact": "9876543210"
           },
           "next_contact": null,
-          "message": "Escalated to human support. Reason: Customer promised to pay on 2038-01-01 but was angry. Reason: Customer explicitly stated 'Stop harassing me' and gave an unrealistic future date ('2038') for payment.",
+          "message": "Escalated to human ops: Customer responded with an absurd and invalid promise-to-pay date ('2038'), which is far beyond the 7-day grace period and violates recovery policies. Immediate human intervention is required to prevent further escalation and address hostility.",
           "channel": "system",
-          "direction": "system",
-          "created_at": "2026-09-04T00:32:59.721783"
+          "direction": "internal",
+          "created_at": "2026-09-04T16:58:28.547664"
         }
       ]
     }

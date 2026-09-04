@@ -6,11 +6,13 @@ import razorpay
 import resend
 from config.config import settings
 from config.constants import email_messages
+from config.logger import get_logger
 from elevenlabs.client import AsyncBaseElevenLabs
 from redis.asyncio import Redis
 from twilio.http.async_http_client import AsyncTwilioHttpClient
 from twilio.rest import Client
-import logging as logger 
+
+logger = get_logger(__name__)
 
 resend.api_key = settings.resend_api_key
 elevenlabs_client = AsyncBaseElevenLabs(api_key=settings.eleven_api_key)
@@ -22,6 +24,28 @@ redis_client = None
 razorpay_client = razorpay.Client(
     auth=(settings.razorpay_key_id, settings.razorpay_key_secret)
 )
+
+async def init_clients():
+    """
+    Eagerly initializes all network clients (HTTP, Redis, Twilio)
+    during FastAPI lifespan startup so singletons are ready and pooled.
+    """
+    global twilo_http_client, twilo_client, http_client, redis_client
+    if http_client is None:
+        http_client = httpx.AsyncClient()
+
+    if redis_client is None:
+        redis_client = Redis.from_url(settings.redis_url, decode_responses=True)
+
+    if twilo_client is None:
+        twilo_http_client = AsyncTwilioHttpClient()
+        twilo_client = Client(
+            settings.twilo_account_sid,
+            settings.twilo_auth_token,
+            http_client=twilo_http_client,
+        )
+    logger.info("Shared clients initialized (HTTP, Redis, Twilio).")
+
 
 def get_twilio_client():
     global twilo_http_client, twilo_client
@@ -76,10 +100,10 @@ async def send_resend_email(
             }
         )
 
-        print(f"    → Email sent successfully: {response}")
+        logger.info(f"Email sent successfully: {response}")
         return True
     except Exception as e:
-        print(f"    → (Simulated email due to missing Resend API key: {e})")
+        logger.warning(f"(Simulated email due to missing Resend API key: {e})")
         return False
 
 
@@ -113,7 +137,7 @@ async def create_rzp_payment_link(
         return response.get("short_url", "URL_NOT_FOUND")
     except Exception as e:
         ref = customer_email.split('@')[0] if customer_email else "recovery"
-        print(f"    → Razorpay API note (using sandbox link): {e}")
+        logger.info(f"Razorpay API note (using sandbox link): {e}")
         return f"https://rzp.io/l/sim-{ref}"
 
 
@@ -142,7 +166,7 @@ async def create_rzp_mandate_update_link(
                 if sub.get("short_url"):
                     return sub["short_url"]
             except Exception as e:
-                print(f"    → Razorpay subscription fetch fallback: {e}")
+                logger.info(f"Razorpay subscription fetch fallback: {e}")
 
         # Razorpay Payment Link configured for Mandate Re-authorization / Token Update
         return razorpay_client.payment_link.create(
@@ -169,7 +193,7 @@ async def create_rzp_mandate_update_link(
         response_url = await asyncio.wait_for(asyncio.to_thread(_create_mandate_link), timeout=3.5)
         return response_url
     except Exception as e:
-        print(f"    → Razorpay Mandate API note (using fallback mandate link): {e}")
+        logger.info(f"Razorpay Mandate API note (using fallback mandate link): {e}")
         return f"https://rzp.io/l/mandate-reauth-{ref}"
 
 
@@ -180,7 +204,7 @@ async def send_twilio_whatsapp(
         contact_number = "+91" + contact_number
 
     if "9876543210" in contact_number or "1234567890" in contact_number or settings.demo_mode:
-        print(f"    → [DEMO SANDBOX] WhatsApp to {contact_number}: '{msg[:75]}...' (Safe dispatch, credits preserved)")
+        logger.info(f"[DEMO SANDBOX] WhatsApp to {contact_number}: '{msg[:75]}...' (Safe dispatch, credits preserved)")
         return "SMdemo" + "0" * 26
 
     kwargs = {
@@ -200,35 +224,45 @@ async def send_twilio_whatsapp(
         else:
             message = res
         sid = getattr(message, "sid", str(message))
-        print(f"    → Twilio WhatsApp message dispatched! SID: {sid}")
+        logger.info(f"Twilio WhatsApp message dispatched! SID: {sid}")
         return sid
     except Exception as e:
-        print(f"    → Twilio WhatsApp Error: {e}")
+        logger.error(f"Twilio WhatsApp Error: {e}")
         return f"ERROR: {e}"
 
 
 async def cleanup_clients():
+    global twilo_http_client, twilo_client, http_client, redis_client
     if twilo_http_client and hasattr(twilo_http_client, 'session') and twilo_http_client.session:
-        await twilo_http_client.session.close()
+        try:
+            await twilo_http_client.session.close()
+        except Exception as e:
+            logger.warning(f"Error closing Twilio session: {e}")
+        twilo_http_client = None
+        twilo_client = None
     if http_client:
-        await http_client.aclose()
+        try:
+            await http_client.aclose()
+        except Exception as e:
+            logger.warning(f"Error closing HTTP client: {e}")
+        http_client = None
     if redis_client:
-        await redis_client.aclose()
+        try:
+            await redis_client.aclose()
+        except Exception as e:
+            logger.warning(f"Error closing Redis client: {e}")
+        redis_client = None
+    logger.info("Shared clients cleaned up.")
 
 
 async def generate_and_send_voice_note(contact_number: str, msg: str) -> str:
-    print(f"  [CLIENT] Generating ElevenLabs Voice...")
+    logger.info("Generating ElevenLabs Voice...")
     media_url = None
     try:
-
-
         if settings.demo_mode:
-            print(f"  [CLIENT] Audio URL: {media_url}")
-            print(f"  [CLIENT] Dispatching Twilio WhatsApp Message...")
+            logger.info("Dispatching Twilio WhatsApp Message (Demo Sandbox)...")
             return "Mesage sent succefully"
 
-
-            
         audio_generator = elevenlabs_client.text_to_speech.convert(
             text=msg,
             voice_id="JBFqnCBsd6RMkjVDRZzb",
@@ -244,7 +278,7 @@ async def generate_and_send_voice_note(contact_number: str, msg: str) -> str:
                 chunks.append(chunk)
         audio_bytes = b"".join(chunks)
 
-        print(f"  [CLIENT] Uploading to catbox.moe...")
+        logger.info("Uploading voice note to catbox.moe...")
         client = get_http_client()
         response = await client.post(
             "https://catbox.moe/user/api.php",
@@ -254,13 +288,11 @@ async def generate_and_send_voice_note(contact_number: str, msg: str) -> str:
         )
         media_url = response.text.strip()
     except Exception as e:
-        print(f"  [CLIENT] Voice Note generation skipped/fallback ({e})")
+        logger.warning(f"Voice Note generation skipped/fallback ({e})")
         media_url = "https://files.catbox.moe/voice_sample_recovery.mp3"
 
-    print(f"  [CLIENT] Audio URL: {media_url}")
-    print(f"  [CLIENT] Dispatching Twilio WhatsApp Message...")
-
+    logger.info(f"Dispatching Twilio WhatsApp Voice Message (URL: {media_url})...")
     body = "🎙️ (Voice Note attached) " + msg
     sid = await send_twilio_whatsapp(contact_number, body, media_url)
-
     return sid
+

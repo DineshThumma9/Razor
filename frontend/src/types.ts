@@ -34,6 +34,8 @@ export const CaseSchema = z.object({
   language: z.string().default('english'),
   audit_log: z.array(AuditEntrySchema).optional(),
   source_id: z.string().optional(),
+  error_details: z.record(z.string(), z.any()).optional(),
+  case_metadata: z.record(z.string(), z.any()).optional(),
 })
 
 export const StatsSchema = z.object({

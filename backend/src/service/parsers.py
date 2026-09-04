@@ -6,6 +6,9 @@ from service.customer import get_customer_profile, save_customer_profile
 from sqlalchemy.ext.asyncio import AsyncSession
 from config.clients import razorpay_client as client
 from config.constants import HANDLED_EVENTS
+from config.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 
@@ -35,7 +38,7 @@ def extract_ids_from_payload(payload: dict):
     elif "order" in contains and webhook.payload.order:
         s = webhook.payload.order.entity
         case_id = None  # order is usually the source_id
-        source_id = s.get("id")
+        source_id = getattr(s, "id", "unknown")
     elif "payment" in contains and webhook.payload.payment:
         s = webhook.payload.payment.entity
         case_id = s.id
@@ -52,7 +55,7 @@ async def parse_webhook(payload: dict, db: AsyncSession) -> RecoveryState | None
     try:
         webhook = RazorpayWebhook.model_validate(payload)
     except Exception as e:
-        print(f"[WEBHOOK ERROR] Payload validation failed: {e}")
+        logger.error(f"[WEBHOOK ERROR] Payload validation failed: {e}")
         return None
 
     if webhook.event not in HANDLED_EVENTS:
@@ -207,13 +210,20 @@ async def parse_webhook(payload: dict, db: AsyncSession) -> RecoveryState | None
         )
         await save_customer_profile(new_profile, db)
     
+    account_id = getattr(webhook, "account_id", None) or payload.get("account_id") or "acc_default"
+    case_metadata = {}
+    if case_type == "overdue_invoice":
+        case_metadata["invoice_number"] = case_id
+
     return RecoveryState(
         case_id=case_id or str(uuid.uuid4()),
-        source_id=source_id,            
+        source_id=source_id,
+        account_id=account_id,
         case_type=case_type,
         decline_type=decline_type,   
         failure_reason=failure_reason,
         error_details=error_details,
+        case_metadata=case_metadata,
         method=method,
         through=through,
         amount_inr=amount,

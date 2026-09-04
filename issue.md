@@ -126,17 +126,19 @@ This document consolidates all critical bugs, business logic gaps, architectural
 
 ## 🟡 Priority 3: Architecture, Code Quality & Tech Debt
 
-### 9. Overcomplicated LangGraph Architecture for Deterministic Logic
+#### 9. [DONE] ✅ Overcomplicated LangGraph Architecture for Deterministic Logic
 * **File:** [`backend/src/agent/graph.py`](file:///home/dinesh/Desktop/projects/renvue/backend/src/agent/graph.py) & [`backend/src/agent/nodes.py`](file:///home/dinesh/Desktop/projects/renvue/backend/src/agent/nodes.py)
+* **Status:** `RESOLVED` (Fixed in `graph.py` and `nodes.py`)
 * **The Flaw:**
-  - `decide_event` contains 100% deterministic Python `if/elif/else` statements (checking decline codes, downtime, amounts).
-  - Yet it artificially mocks an `AIMessage` with manual tool call dictionaries just to feed LangGraph’s prebuilt `ToolNode`.
-  - Tools write directly to PostgreSQL, forcing `audit()` to re-query the database to avoid overwriting state.
-  - This introduces unnecessary latency, graph overhead, and state-desync risks across DB, Redis, and memory.
-* **Fix:**
-  - Decouple:
-    1. **Deterministic Rule Engine (Python):** Fast ($<10\text{ms}$), runs webhooks, downtime checks, and salary math directly.
-    2. **Conversational Agent (Mistral LLM):** Invoked *only* for inbound human chat replies with 3 bounded tools (`propose_discount`, `record_promise_to_pay`, `escalate_to_human`).
+  - `decide_event` contained 100% deterministic Python `if/elif/else` statements (checking decline codes, downtime, amounts).
+  - Yet it artificially mocked an `AIMessage` with manual tool call dictionaries just to feed LangGraph’s prebuilt `ToolNode`.
+  - Tools wrote directly to PostgreSQL, forcing `audit()` to re-query the database to avoid overwriting state.
+  - This introduced unnecessary latency, graph overhead, and state-desync risks across DB, Redis, and memory.
+* **Resolution:**
+  - Decoupled into a clean two-engine architecture:
+    1. **Deterministic Rule Engine (`execute_deterministic_recovery`):** Fast ($<10\text{ms}$), runs webhooks, downtime checks, discount calculation, link hydration, Meta HSM templating, and channel dispatch directly in Python without artificial `AIMessage` or `ToolNode` wrappers.
+    2. **Conversational Agent (Mistral LLM):** Invoked *only* for inbound human chat turns (`inbound.whatsapp`, `inbound.email`, `inbound.human_approval`) with bounded tools (`create_payment_link`, `log_promise_to_pay`, `escalate_to_human`, `send_whatsapp_msg`).
+  - In `graph.py`: `decide_event` directly routes to `audit -> END`, eliminating intermediate tool-loop latency for automated dunning.
 
 ---
 
@@ -200,43 +202,52 @@ This document consolidates all critical bugs, business logic gaps, architectural
 
 ---
 
-### 14. RBI 24-Hour Pre-Debit Notification Rule (Section 10(2) PSS Act)
+### 14. [DONE] ✅ RBI 24-Hour Pre-Debit Notification Rule (Section 10(2) PSS Act) & TRAI Window
+* **Files:** [`backend/src/service/compliance.py`](file:///home/dinesh/Desktop/projects/renvue/backend/src/service/compliance.py), [`backend/src/agent/tools.py`](file:///home/dinesh/Desktop/projects/renvue/backend/src/agent/tools.py)
+* **Status:** `RESOLVED` (Implemented in `compliance.py`, `tools.py`, `nodes.py`)
 * **The Flaw:**
-  - For soft declines scheduled for the 1st of the month, auto-debits cannot be retried unannounced under RBI circulars.
-* **Fix:**
-  - Frame retry sequencing as a two-stage cadence:
-    1. *T - 24 Hours:* Automated Pre-Debit WhatsApp/SMS alert.
-    2. *T - 0:* Auto-debit retry execution.
+  - Under Section 10(2) of the Payment and Settlement Systems Act (PSS Act) and RBI circulars on recurring e-mandates, auto-debits on cards and UPI AutoPay cannot be retried unannounced. A pre-debit intimation must be dispatched at least 24 hours prior to the actual charge ($T - 24\text{h}$).
+  - Additionally, telecom regulations (TRAI TCCCPR) restrict commercial dunning communications strictly between 9:00 AM and 9:00 PM IST.
+* **Resolution:**
+  - Built `compliance.py` guardrail engine:
+    1. **TRAI Window Enforcement (`adjust_for_trai_window`):** Any contact timestamp scheduled before 9:00 AM or after 9:00 PM snaps cleanly to 09:05 AM during business hours.
+    2. **RBI Pre-Debit Cadence (`calculate_rbi_pre_debit_schedule`):** For all recurring mandate and subscription cases (`failed_subscription`, `subscription_cancelled`), retry sequencing enforces a mandatory $T - 24\text{h}$ pre-debit intimation.
+    3. Compliance metadata is saved in `state.error_details["rbi_pre_debit_compliance"]` (recording `pss_act_section: "10(2)"`, `scheduled_debit_at`, `pre_debit_intimation_at`, `compliance_verified: True`).
 
 ---
 
-### 15. WhatsApp 24-Hour Window & Meta HSM Template Compliance
+### 15. [DONE] ✅ WhatsApp 24-Hour Window & Meta HSM Template Compliance
+* **Files:** [`backend/src/service/compliance.py`](file:///home/dinesh/Desktop/projects/renvue/backend/src/service/compliance.py), [`backend/src/agent/tools.py`](file:///home/dinesh/Desktop/projects/renvue/backend/src/agent/tools.py), [`backend/src/agent/nodes.py`](file:///home/dinesh/Desktop/projects/renvue/backend/src/agent/nodes.py)
+* **Status:** `RESOLVED` (Implemented in `compliance.py`, `tools.py`, `nodes.py`)
 * **The Flaw:**
-  - Meta WhatsApp Cloud API blocks free-form text outside a 24-hour window from the user's last inbound message; only pre-approved HSM Utility/Authentication templates can be delivered.
-* **Fix:**
-  - Explicitly document that initial outbound dunning uses WhatsApp Utility Templates, switching to conversational LLM mode only within the active 24-hour service window.
+  - Meta WhatsApp Cloud API prohibits free-form text messages outside a 24-hour window from the user's last inbound message; only pre-approved HSM (Highly Structured Message) Utility/Authentication templates can be delivered.
+* **Resolution:**
+  - Implemented `build_whatsapp_payload()` and `WhatsAppHSMTemplate` in `service/compliance.py`:
+    1. **Active 24h Customer Care Window:** If the customer sent an inbound WhatsApp message within the last 24 hours, free-form conversational LLM text is permitted (`meta_compliance = "ACTIVE_24H_WINDOW"`).
+    2. **Cold Outbound Outreach:** Cold automated dunning and webhook recovery notifications strictly format into pre-approved Meta HSM Utility Templates (`renvue_payment_reminder_utility`, `renvue_pre_debit_intimation`, `renvue_invoice_overdue_notice`, `renvue_checkout_recovery_utility`).
+    3. Audit logs record `meta_compliance: "UTILITY_HSM_COMPLIANT"` and `hsm_template` parameter tags.
 
 ---
 
 ## 🟢 Priority 5: Low Priority / Future Roadmap
 
-### 16. Lack of Multi-Tenancy (Merchant Isolation via `account_id`)
-* **Files:** [`backend/src/models/models.py`](file:///home/dinesh/Desktop/projects/renvue/backend/src/models/models.py), [`backend/src/service/parsers.py`](file:///home/dinesh/Desktop/projects/renvue/backend/src/service/parsers.py)
+### 16. [DONE] ✅ Multi-Tenancy (Merchant Isolation via `account_id`)
+* **Files:** [`backend/src/models/models.py`](file:///home/dinesh/Desktop/projects/renvue/backend/src/models/models.py), [`backend/src/config/db.py`](file:///home/dinesh/Desktop/projects/renvue/backend/src/config/db.py), [`backend/src/models/schema.py`](file:///home/dinesh/Desktop/projects/renvue/backend/src/models/schema.py), [`backend/src/service/parsers.py`](file:///home/dinesh/Desktop/projects/renvue/backend/src/service/parsers.py), [`backend/src/router/apis.py`](file:///home/dinesh/Desktop/projects/renvue/backend/src/router/apis.py)
+* **Status:** `RESOLVED` (Implemented across models, db, parsers, and apis)
 * **The Flaw:**
-  - The current system operates in single-tenant mode where all recovery cases reside in a shared pool without merchant-level partitioning.
-  - While Razorpay webhook events naturally carry the merchant's `account_id` (e.g., `"account_id": "acc_TestMode"` or `"acc_XXXXX"`), `RecoveryState` does not store or index `account_id`.
-  - Without this, multiple merchants using Renvue would have their cases, customer contacts, and recovery statistics intermingled.
-* **Fix (Low Priority):**
-  - Add `account_id: str = Field(index=True, default="acc_default")` to `RecoveryState`.
-  - Extract `payload.get("account_id")` during webhook ingestion in `parsers.py`.
-  - Scope all database queries in `apis.py` (`/api/cases`, `/api/stats`, `/api/metrics`) by authenticated `account_id` (or header `X-Razorpay-Account-ID`).
+  - The system originally operated in single-tenant mode where all recovery cases resided in a shared pool without merchant-level partitioning.
+  - Multiple merchants using Renvue would have their cases, customer contacts, and recovery statistics intermingled.
+* **Resolution:**
+  - Added `account_id: str = Field(index=True, default="acc_default")` to `RecoveryState` with non-destructive PostgreSQL auto-migration (`_init_db()`).
+  - Extracted `payload.get("account_id")` during webhook ingestion in `parsers.py` and simulation payload builder in `simulate.py`.
+  - Scoped all database query endpoints in `apis.py` (`/api/metrics`, `/api/cases`, `/api/cases/{case_id}`, `/api/cases/clear`, `/api/cases/{case_id}/approve`, `/api/cases/{case_id}/close`) by `account_id` query parameter or `X-Razorpay-Account-Id` header, enforcing strict cross-tenant isolation (returns 404 on cross-tenant access).
 
 ---
 
 ## 📊 Summary Issue Matrix
 
 | ID | Issue Title | Category | Severity | Status | Primary File |
-| :---: | :--- | :--- | :---: | :---: | :--- |
+| :---: | :--- | :--- | :--- | :---: | :---: | :--- |
 | **#1** | Fragile date parsing / silent +3 day fallback | Code Bug | 🔴 High | ✅ Resolved | `src/agent/tools.py` |
 | **#2** | Sub-tool `escalate_to_human.ainvoke` state desync | Code Bug | 🔴 High | ✅ Resolved | `src/agent/tools.py`, `src/agent/nodes.py` |
 | **#3** | 1-minute runaway retry on past/today timestamps | Code Bug | 🔴 High | ✅ Resolved | `src/agent/tools.py` |
@@ -245,14 +256,14 @@ This document consolidates all critical bugs, business logic gaps, architectural
 | **#6** | Customer `contact_preference` completely ignored | Compliance | 🔴 High | ✅ Resolved | `src/agent/nodes.py`, `src/models/models.py` |
 | **#7** | 30-day subscription grace period exploit | Business Logic | 🔴 High | ✅ Resolved | `src/agent/tools.py` |
 | **#8** | One-time payment links instead of mandate re-auth | Domain Logic | 🟠 Medium | ✅ Resolved | `src/agent/tools.py`, `src/config/clients.py` |
-| **#9** | Overcomplicated LangGraph for deterministic code | Architecture | 🟠 Medium | ⏳ Pending | `src/agent/graph.py` |
+| **#9** | Overcomplicated LangGraph for deterministic code | Architecture | 🟠 Medium | ✅ Resolved | `src/agent/graph.py`, `src/agent/nodes.py` |
 | **#10** | Missing `interrupt_before` in LangGraph compile | Architecture | 🟠 Medium | ✅ Resolved | `src/agent/graph.py`, `src/agent/nodes.py` |
 | **#11** | Manual SQLModel-to-dict duplication | Code Quality | 🟡 Medium | ✅ Resolved | `src/router/apis.py`, `src/service/broadcast.py` |
 | **#12** | Router filename typo (`sitmulate.py`) | Code Quality | 🟢 Low | ✅ Resolved | `src/router/simulate.py`, `src/main.py` |
 | **#13** | Static capture flags in batch evaluation | Benchmark | 🟠 Medium | ✅ Resolved | `batch_demo/run_batch.py` |
-| **#14** | RBI 24h pre-debit intimation notification rule | Regulatory | 🟡 Medium | ⏳ Pending | `src/agent/tools.py` |
-| **#15** | WhatsApp 24h service window & HSM templates | Compliance | 🟡 Medium | ⏳ Pending | `src/service/broadcast.py` |
-| **#16** | Lack of multi-tenancy (`account_id` isolation) | Architecture | 🟢 Low | ⏳ Pending | `src/models/models.py` |
+| **#14** | RBI 24h pre-debit intimation notification rule | Regulatory | 🟡 Medium | ✅ Resolved | `src/service/compliance.py`, `src/agent/tools.py` |
+| **#15** | WhatsApp 24h service window & HSM templates | Compliance | 🟡 Medium | ✅ Resolved | `src/service/compliance.py`, `src/agent/tools.py` |
+| **#16** | Lack of multi-tenancy (`account_id` isolation) | Architecture | 🟢 Low | ✅ Resolved | `src/models/models.py`, `src/router/apis.py` |
 
 ---
 

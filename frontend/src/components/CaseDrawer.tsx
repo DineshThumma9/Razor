@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { fetchCase, approveEscalation, closeCase } from '../api'
 import { useCaseStore } from '../store/useCaseStore'
 import type { Case } from '../types'
@@ -14,7 +13,10 @@ import {
   Mail, 
   Phone, 
   AlertTriangle, 
-  ShieldCheck
+  ShieldCheck,
+  Link2,
+  Tag,
+  Calendar
 } from 'lucide-react'
 
 export function CaseDrawer({
@@ -118,7 +120,7 @@ export function CaseDrawer({
   }
 
   return (
-    <div className="h-full bg-[#0d1117] text-zinc-100 flex flex-col relative w-full overflow-hidden select-none">
+    <div className="h-full min-h-0 bg-[#0d1117] text-zinc-100 flex flex-col relative w-full overflow-hidden select-none">
       {/* Draggable Resize Handle on Left Edge */}
       <div
         onMouseDown={handleMouseDown}
@@ -163,9 +165,9 @@ export function CaseDrawer({
       )}
 
       {detail && !loading && (
-        <div className="flex flex-col h-full overflow-hidden select-auto">
-          {/* Top Bar: Case ID & Dismiss */}
-          <div className="px-8 py-3.5  border-zinc-800/60 flex items-center justify-between shrink-0">
+        <div className="flex flex-col h-full min-h-0 select-auto">
+          {/* Top Bar: Case ID & Dismiss (Sticky Header) */}
+          <div className="px-8 py-3.5 border-b border-zinc-800/60 bg-[#0d1117] flex items-center justify-between shrink-0 z-10">
             <div className="flex items-center gap-3">
               <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
                 Case File
@@ -196,112 +198,190 @@ export function CaseDrawer({
             </button>
           </div>
 
-          {/* Customer Profile & Amount (Clean, Uncluttered, No Gradient Soup) */}
-          <div className="px-8 py-5 border-zinc-800/60 shrink-0 space-y-4">
-            <div className="flex items-start justify-between gap-6 flex-wrap">
-              <div className="space-y-1 min-w-0">
-                <h2 className="text-2xl font-bold tracking-tight text-white">
+          {/* Scrollable Body: Customer Details, Metadata, and Full Audit Timeline */}
+          <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
+            {/* Customer Profile & Amount (Clean, Uncluttered) */}
+            <div className="px-8 py-5 border-b border-zinc-800/60 space-y-4">
+              <div className="flex items-start justify-between gap-6 flex-wrap">
+                <div className="space-y-1 min-w-0">
+                  <h2 className="text-2xl font-bold tracking-tight text-white">
+                    {detail.customer.name || 'Unknown Customer'}
+                  </h2>
+                  <div className="flex flex-col items-start gap-y-1.5 mt-2 text-xs text-zinc-400">
+                    {detail.customer.email && (
+                      <span className="flex items-center gap-1.5">
+                        <Mail className="w-3.5 h-3.5 text-zinc-500" />
+                        {detail.customer.email}
+                      </span>
+                    )}
+                    {detail.customer.contact && (
+                      <span className="flex items-center gap-1.5">
+                        <Phone className="w-3.5 h-3.5 text-zinc-500" />
+                        +91 {detail.customer.contact}
+                      </span>
+                    )}
+                  </div>
+                </div>
 
-                  {detail.customer.name || 'Unknown Customer'}
-
-                </h2>
-                <div className="flex flex-wrap mt-2 flex-col items-center gap-x-4 gap-y-2 text-xs text-zinc-400">
-                  {detail.customer.email && (
-                    <span className="flex items-center gap-1.5">
-                      <Mail className="w-3.5 h-3.5 text-zinc-500" />
-                      {detail.customer.email}
-                    </span>
-                  )}
-                  {detail.customer.contact && (
-                    <span className="flex items-center gap-1.5">
-                      <Phone className="w-3.5 h-3.5 text-zinc-500" />
-                      +91 {detail.customer.contact}
-                    </span>
-                  )}
+                {/* Clean Amount */}
+                <div className="text-right shrink-0">
+                  <div className="text-2xl font-bold text-zinc-100 tracking-tight">
+                    ₹{fmt(detail.amount_inr)}
+                  </div>
+                  <div className="text-[11px] text-zinc-500 uppercase tracking-wider mt-0.5">
+                    {detail.recovery_status === 'recovered' ? 'Recovered' : 'Amount at Risk'}
+                  </div>
                 </div>
               </div>
 
-              {/* Clean Amount */}
-              <div className="text-right shrink-0">
-                <div className="text-2xl font-bold text-zinc-100 tracking-tight">
-                  ₹{fmt(detail.amount_inr)}
+              {/* Clean Metadata Row */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-3 border-t border-zinc-800/40 text-xs">
+                <div>
+                  <span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-0.5">Status</span>
+                  <span className="inline-flex items-center gap-1.5 font-medium text-zinc-200">
+                    {detail.recovery_status === 'escalated' ? (
+                      <>
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                        <span className="text-rose-400">Escalated</span>
+                      </>
+                    ) : detail.recovery_status === 'recovered' ? (
+                      <>
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        <span className="text-emerald-400">Recovered</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                        <span>Active ({detail.attempt_count}/3)</span>
+                      </>
+                    )}
+                  </span>
                 </div>
-                <div className="text-[11px] text-zinc-500 uppercase tracking-wider mt-0.5">
-                  {detail.recovery_status === 'recovered' ? 'Recovered' : 'Amount at Risk'}
+
+                <div>
+                  <span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-0.5">Decline Cause</span>
+                  <span className="font-medium text-zinc-200 block truncate">
+                    {detail.failure_reason || detail.decline_type || 'Payment Failed'}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-0.5">Next Contact</span>
+                  <span className="font-medium text-zinc-300 block truncate">
+                    {detail.next_retry_at ? fmtTs(detail.next_retry_at) : '—'}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-0.5">Category</span>
+                  <span className="text-zinc-300 block capitalize truncate">
+                    {detail.case_type.replace(/_/g, ' ')}
+                  </span>
                 </div>
               </div>
             </div>
 
-            {/* Clean Metadata Row (Properly Distributed Space, No Heavy Cards) */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-3  border-zinc-800/40 text-xs">
-              <div>
-                <span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-0.5">Status</span>
-                <span className="inline-flex items-center gap-1.5 font-medium text-zinc-200">
-                  {detail.recovery_status === 'escalated' ? (
-                    <>
-                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
-                      <span className="text-rose-400">Escalated</span>
-                    </>
-                  ) : detail.recovery_status === 'recovered' ? (
-                    <>
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      <span className="text-emerald-400">Recovered</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                      <span>Active ({detail.attempt_count}/3)</span>
-                    </>
+            {/* Recovery State Metadata */}
+            {detail.case_metadata && Object.keys(detail.case_metadata).length > 0 && (
+              <div className="px-8 py-3.5 border-b border-zinc-800/40 bg-zinc-900/30 text-xs">
+                <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold block mb-2">
+                  Recovery State Intelligence
+                </span>
+                <div className="flex flex-wrap gap-2 text-[11px]">
+                  {detail.case_metadata.payment_link && (
+                    <a
+                      href={detail.case_metadata.payment_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-indigo-950/60 border border-indigo-700/50 text-indigo-300 hover:text-indigo-100"
+                    >
+                      <Link2 className="w-3 h-3" />
+                      Payment Link
+                    </a>
                   )}
-                </span>
+                  {detail.case_metadata.discount_pct !== undefined && detail.case_metadata.discount_pct > 0 && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-950/60 border border-emerald-700/50 text-emerald-300">
+                      <Tag className="w-3 h-3" />
+                      Concession: {detail.case_metadata.discount_pct}%
+                    </span>
+                  )}
+                  {detail.case_metadata.ptp_date && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-amber-950/60 border border-amber-700/50 text-amber-300">
+                      <Calendar className="w-3 h-3" />
+                      PTP: {detail.case_metadata.ptp_date}
+                    </span>
+                  )}
+                  {detail.case_metadata.cumulative_grace_days_used !== undefined && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-zinc-800/80 border border-zinc-700/50 text-zinc-300">
+                      Grace Used: {detail.case_metadata.cumulative_grace_days_used}d
+                    </span>
+                  )}
+                  {detail.case_metadata.invoice_number && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-zinc-800/80 border border-zinc-700/50 text-zinc-300">
+                      Inv #{detail.case_metadata.invoice_number}
+                    </span>
+                  )}
+                </div>
               </div>
+            )}
 
-              <div>
-                <span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-0.5">Decline Cause</span>
-                <span className="font-medium text-zinc-200 block truncate">
-                  {detail.failure_reason || detail.decline_type || 'Payment Failed'}
+            {/* Diagnostic Details */}
+            {detail.error_details && Object.keys(detail.error_details).length > 0 && (
+              <div className="px-8 py-3.5 border-b border-zinc-800/40 bg-rose-950/10 text-xs">
+                <span className="text-[10px] uppercase tracking-wider text-rose-400/80 font-semibold block mb-2">
+                  Technical Diagnostics
                 </span>
+                <div className="grid grid-cols-2 gap-2 text-[11px] text-zinc-400">
+                  {detail.error_details.error_code && (
+                    <div>
+                      <span className="text-zinc-500">Code:</span> <span className="text-rose-300 font-mono">{detail.error_details.error_code}</span>
+                    </div>
+                  )}
+                  {detail.error_details.error_step && (
+                    <div>
+                      <span className="text-zinc-500">Step:</span> <span className="text-zinc-300">{detail.error_details.error_step}</span>
+                    </div>
+                  )}
+                  {detail.error_details.error_reason && (
+                    <div className="col-span-2">
+                      <span className="text-zinc-500">Reason:</span> <span className="text-zinc-300">{detail.error_details.error_reason}</span>
+                    </div>
+                  )}
+                  {detail.error_details.card_network && (
+                    <div>
+                      <span className="text-zinc-500">Card:</span> <span className="text-zinc-300">{detail.error_details.card_network} {detail.error_details.card_last4 ? `•••• ${detail.error_details.card_last4}` : ''}</span>
+                    </div>
+                  )}
+                  {detail.error_details.rrn && (
+                    <div>
+                      <span className="text-zinc-500">RRN:</span> <span className="text-zinc-300 font-mono">{detail.error_details.rrn}</span>
+                    </div>
+                  )}
+                </div>
               </div>
+            )}
 
-              <div>
-                <span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-0.5">Next Contact</span>
-                <span className="font-medium text-zinc-300 block truncate">
-                  {detail.next_retry_at ? fmtTs(detail.next_retry_at) : '—'}
-                </span>
-              </div>
-
-              <div>
-                <span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-0.5">Category</span>
-                <span className="text-zinc-300 block capitalize truncate">
-                  {detail.case_type.replace(/_/g, ' ')}
-                </span>
-              </div>
+            {/* Subheader: Event Audit Trail (Sticky under Top Bar while scrolling) */}
+            <div className="px-8 py-2.5 border-b border-zinc-800/50 flex items-center justify-between text-xs bg-[#0d1117]/95 sticky top-0 z-10 backdrop-blur-sm">
+              <span className="font-semibold font-sans uppercase tracking-wider text-zinc-400 text-[11px]">
+                Audit Trail 
+              </span>
+              <span className="text-[11px] font-sans text-zinc-500">
+                {detail.audit_log?.length || 0} events
+              </span>
             </div>
 
-          </div>
-
-          {/* Subheader: Event Audit Trail */}
-          <div className="px-8 py-2.5 transparent border-zinc-800/50 flex items-center justify-between text-xs shrink-0">
-            <span className="font-semibold font-sans transparent uppercase tracking-wider text-zinc-400 text-[11px]">
-              Audit Trail 
-            </span>
-            <span className="text-[11px] font-sans text-zinc-500">
-              {detail.audit_log?.length || 0} events
-            </span>
-          </div>
-
-          {/* Scrollable Timeline Stream */}
-          <ScrollArea className="flex-1 px-8 py-6">
-            <div className="max-w-2xl">
+            {/* Timeline Stream */}
+            <div className="px-8 py-6 max-w-2xl">
               <AuditTimeline 
                 entries={detail.audit_log ?? []} 
                 customerName={detail.customer.name}
               />
             </div>
-          </ScrollArea>
+          </div>
 
-          {/* Bottom Action Footer */}
-          <div className="p-4  border-zinc-800 bg-[#0d1117] flex gap-3 shrink-0">
+          {/* Bottom Action Footer (Sticky at Bottom) */}
+          <div className="p-4 border-t border-zinc-800 bg-[#0d1117] flex gap-3 shrink-0 z-10">
             {detail.recovery_status === 'escalated' ? (
               <>
                 <Button

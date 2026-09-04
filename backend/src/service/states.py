@@ -2,6 +2,9 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import insert
 from models.models import RecoveryState
+from config.logger import get_logger
+
+logger = get_logger(__name__)
 
 async def save_state(state: RecoveryState, db: AsyncSession):
     """Save or update the RecoveryState to the database using an atomic Postgres upsert."""
@@ -19,9 +22,15 @@ async def save_state(state: RecoveryState, db: AsyncSession):
     try:
         from service.broadcast import broadcast_case_update
         await broadcast_case_update(state)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Broadcast case update skipped or failed: {e}")
 
 async def load_state(case_id: str, db: AsyncSession) -> Optional[RecoveryState]:
     """Load a RecoveryState by case_id."""
-    return await db.get(RecoveryState, case_id)
+    state = await db.get(RecoveryState, case_id)
+    if state:
+        if state.case_metadata is None:
+            state.case_metadata = {}
+        if state.error_details is None:
+            state.error_details = {}
+    return state

@@ -1,4 +1,5 @@
 from config.clients import send_twilio_whatsapp
+from config.logger import get_logger
 import asyncio
 from datetime import datetime, timedelta
 from langchain_core.messages import HumanMessage
@@ -6,40 +7,25 @@ from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.models import RecoveryState
 from agent.graph import build_agent
-from agent.tools import _schedule_task
+from agent.utils import _schedule_task
 from service.states import load_state, save_state
 from background.worker import invoke_agent_task, abandoned_cart_timer, revoke_active_task
 
 from service.parsers import parse_webhook, extract_ids_from_payload
 from service.downtime import process_downtime_event
 
+logger = get_logger(__name__)
+
 
 async def kill_all_tasks(case_id: str, db: AsyncSession):
     state = await load_state(case_id, db)
     if state and state.active_task_id:
-        print(f"[TASKIQ] Revoking active task {state.active_task_id} for case {case_id}")
+        logger.info(f"[TASKIQ] Revoking active task {state.active_task_id} for case {case_id}")
         await revoke_active_task(state.active_task_id)
         state.active_task_id = None
         await save_state(state, db)
 
 
-async def mark_resolved_kill_tasks():
-    pass 
-
-
-async def change_pursit(case_id: str, amount_paid: float, db: AsyncSession):
-    state = await load_state(case_id, db)
-    if state:
-        state.amount_inr -= amount_paid
-        state.audit_log.append({
-            "event_triggered": "partial_payment_received",
-            "amount": str(amount_paid),
-            "recovery_status": state.recovery_status,
-            "customer": state.customer,
-            "next_contact": datetime.now().isoformat()
-        })
-        await save_state(state, db)
-        print(f"[RECOVERY] Case {case_id} balance updated. Remaining: {state.amount_inr}")
 
 
 async def handle_payment_event(payload: dict, db: AsyncSession) -> dict:
@@ -55,21 +41,21 @@ async def handle_payment_event(payload: dict, db: AsyncSession) -> dict:
     if event in SUCCESS_EVENTS or event == "payment.dispute.created":
         extracted_case_id, extracted_source_id = extract_ids_from_payload(payload)
         
-        result = await db.execute(
-            select(RecoveryState).where(
-                RecoveryState.recovery_status.notin_(["recovered", "closed", "escalated"])
-            )
-        )
-        cases = result.scalars().all()
-            
+        conditions = []
+        if extracted_case_id:
+            conditions.append(RecoveryState.case_id == extracted_case_id)
+        if extracted_source_id and extracted_source_id != "unknown":
+            conditions.append(RecoveryState.source_id == extracted_source_id)
+
         matched_case = None
-        for case in cases:
-            if case.case_id == extracted_case_id:
-                matched_case = case
-                break
-            elif case.source_id != "unknown" and case.source_id == extracted_source_id:
-                matched_case = case
-                break
+        if conditions:
+            from sqlmodel import or_
+            query = select(RecoveryState).where(
+                RecoveryState.recovery_status.notin_(["recovered", "closed", "escalated"]),
+                or_(*conditions)
+            )
+            result = await db.execute(query)
+            matched_case = result.scalars().first()
             
         if matched_case:
             if event == "payment.dispute.created":
@@ -77,12 +63,36 @@ async def handle_payment_event(payload: dict, db: AsyncSession) -> dict:
                 matched_case.failure_reason = "Customer filed a dispute"
             else:
                 matched_case.recovery_status = "recovered"
-                amount = payload.get("payload", {}).get("payment", {}).get("entity", {}).get("amount", 0) / 100.0
-                matched_case.recovered_amount = amount
+                p_entity = payload.get("payload", {}).get("payment", {}).get("entity", {})
+                o_entity = payload.get("payload", {}).get("order", {}).get("entity", {})
+                i_entity = payload.get("payload", {}).get("invoice", {}).get("entity", {})
+                s_entity = payload.get("payload", {}).get("subscription", {}).get("entity", {})
+                raw_amount = (
+                    p_entity.get("amount")
+                    or o_entity.get("amount_paid")
+                    or o_entity.get("amount")
+                    or i_entity.get("amount_paid")
+                    or i_entity.get("amount")
+                    or s_entity.get("amount")
+                )
+                if raw_amount:
+                    matched_case.recovered_amount = float(raw_amount) / 100.0
+                elif matched_case.amount_inr:
+                    matched_case.recovered_amount = matched_case.amount_inr
             
-            db.add(matched_case)
-            await db.commit()
-                
+            matched_case.next_retry_at = None
+            matched_case.audit_log.append({
+                "event_triggered": "payment_recovered" if matched_case.recovery_status == "recovered" else "payment_dispute",
+                "amount": str(matched_case.recovered_amount or matched_case.amount_inr),
+                "recovery_status": matched_case.recovery_status,
+                "customer": matched_case.customer,
+                "next_contact": None,
+                "message": f"Payment successfully recovered: ₹{matched_case.recovered_amount:,.0f}" if matched_case.recovery_status == "recovered" else "Dispute filed by customer",
+                "channel": "system",
+                "direction": "system",
+                "created_at": datetime.now().isoformat()
+            })
+            await save_state(matched_case, db)
             await kill_all_tasks(matched_case.case_id, db)
                 
             if event == "payment.dispute.created":
@@ -123,9 +133,6 @@ async def handle_payment_event(payload: dict, db: AsyncSession) -> dict:
         new_state = await parse_webhook(payload, db)
         if new_state:
             await save_state(new_state, db)
-            from background.worker import broker, invoke_agent_task
-            if broker.connection_pool is None:
-                await broker.startup()
             await invoke_agent_task.kiq(new_state.case_id)
             return {"status": "lost revenue case created and queued!"}
             
@@ -134,8 +141,16 @@ async def handle_payment_event(payload: dict, db: AsyncSession) -> dict:
         extracted_case_id, extracted_source_id = extract_ids_from_payload(payload)
         if extracted_source_id != "unknown":
             customer_data = payload.get("payload", {}).get("order", {}).get("entity", {}).get("customer", {})
-            # Taskiq .kiq() instead of celery .apply_async()
-            await abandoned_cart_timer.kiq(extracted_source_id, customer_data)
+            from background.worker import schedule_source
+            target_date = datetime.now() + timedelta(minutes=15)
+            if schedule_source._connection_pool is None:
+                await schedule_source.startup()
+            await abandoned_cart_timer.kicker().schedule_by_time(
+                schedule_source,
+                target_date,
+                extracted_source_id,
+                customer_data,
+            )
             return {"status": "abandoned cart timer scheduled"}
 
     return {"status": "ignored"}
@@ -153,6 +168,19 @@ async def handle_inbound_email(payload: dict, db: AsyncSession) -> dict:
         return {"status": "ignored", "reason": "Case not active"}
 
     customer_reply_text = payload.get("text", "")
+    state.audit_log.append({
+        "event_triggered": "customer_reply",
+        "amount": str(state.amount_inr),
+        "recovery_status": state.recovery_status,
+        "customer": state.customer,
+        "next_contact": state.next_retry_at.isoformat() if state.next_retry_at else None,
+        "message": customer_reply_text,
+        "channel": "email",
+        "direction": "inbound",
+        "created_at": datetime.now().isoformat()
+    })
+    await save_state(state, db)
+
     new_message = HumanMessage(content=f"Customer Replied via Email: {customer_reply_text}")
 
     agent = build_agent(state)
@@ -166,7 +194,7 @@ async def handle_inbound_email(payload: dict, db: AsyncSession) -> dict:
 
 
 async def handle_inbound_whatsapp(from_number: str, body: str, db: AsyncSession, case_id: str | None = None) -> dict:
-    print(f"\n[INBOUND WHATSAPP] Received message from {from_number}: {body}")
+    logger.info(f"[INBOUND WHATSAPP] Received message from {from_number}: {body}")
     
     active_case = None
     if case_id:
@@ -177,7 +205,7 @@ async def handle_inbound_whatsapp(from_number: str, body: str, db: AsyncSession,
         if contact_number.startswith("+91"):
             contact_number = contact_number[3:]
             
-        print(f"[INBOUND WHATSAPP] Looking for active case for contact: {contact_number}")
+        logger.info(f"[INBOUND WHATSAPP] Looking for active case for contact: {contact_number}")
         
         result = await db.execute(
             select(RecoveryState)
@@ -194,7 +222,7 @@ async def handle_inbound_whatsapp(from_number: str, body: str, db: AsyncSession,
                 match_cases.append(case)
         
         if not match_cases:
-            print(f"[INBOUND WHATSAPP] Ignored: No active case found for {contact_number if 'contact_number' in locals() else from_number}")
+            logger.info(f"[INBOUND WHATSAPP] Ignored: No active case found for {contact_number if 'contact_number' in locals() else from_number}")
             return {"status": "ignored", "reason": "No active case found for this number"}
 
         active_case = None 
@@ -235,20 +263,26 @@ async def handle_inbound_whatsapp(from_number: str, body: str, db: AsyncSession,
             return {"status": "disambiguation_prompt_sent", "active_cases_count": len(match_cases)}
         
     if body.strip().upper() == "STOP":
-        print(f"[INBOUND WHATSAPP] Customer requested STOP. Closing case {active_case.case_id}.")
+        logger.info(f"[INBOUND WHATSAPP] Customer requested STOP. Closing case {active_case.case_id}.")
         active_case.recovery_status = "closed"
+        active_case.next_retry_at = None
         active_case.audit_log.append({
             "event_triggered": "customer_opt_out",
             "amount": str(active_case.amount_inr),
             "recovery_status": "closed",
             "customer": active_case.customer,
-            "next_contact": None
+            "next_contact": None,
+            "message": "Customer sent STOP. Opt-out processed, case closed.",
+            "channel": "whatsapp",
+            "direction": "inbound",
+            "created_at": datetime.now().isoformat()
         })
         from service.states import save_state
         await save_state(active_case, db)
+        await kill_all_tasks(active_case.case_id, db)
         return {"status": "Opted out"}
 
-    print(f"[INBOUND WHATSAPP] Matched case {active_case.case_id}. Waking up agent!")
+    logger.info(f"[INBOUND WHATSAPP] Matched case {active_case.case_id}. Waking up agent!")
         
     active_case.audit_log.append({
         "event_triggered": "customer_reply",

@@ -12,11 +12,10 @@ class AuditEntry(BaseModel):
     message: Optional[str] = None
     channel: Optional[str] = None
     direction: Optional[str] = None  # outbound | inbound | system
+    meta_compliance: Optional[str] = None
+    hsm_template: Optional[str] = None
     created_at: Optional[datetime] = Field(default_factory=datetime.now)
-
-
-class Invoice(BaseModel):
-    pass 
+    model_config = {"extra": "allow"}
 
 class Instrument(BaseModel):
     flow:Optional[str] = None
@@ -188,9 +187,12 @@ class EmailReminderArgs(BaseModel):
 
 
 class PromiseToPayArgs(BaseModel):
-    sentiment:str=Field(description="Sentiment of the reply user sent Gentle? Angry?")
-    reason: str = Field(description="The reason the user gave for the delay.")
-    date_str: str = Field(description="The ISO format date (YYYY-MM-DD) the user promised to pay by.")
+    sentiment: str = Field(default="neutral", description="Sentiment of the reply user sent (e.g. 'gentle', 'neutral', 'angry', 'hostile').")
+    reason: str = Field(default="Customer commitment regarding payment", description="The reason or context the user gave for the delay.")
+    date_str: Optional[str] = Field(
+        default=None,
+        description="The ISO format date (YYYY-MM-DD) the user promised to pay by, or None if no specific valid date could be extracted."
+    )
 
 
 class CompleteCaseArgs(BaseModel):
@@ -209,6 +211,10 @@ class SalaryDateArgs(BaseModel):
     pass
 
 
+class DiscountOfferArgs(BaseModel):
+    pass
+
+
 class PayloadContainer(BaseModel):
     payment: Optional[PaymentWrapper] = None
     subscription: Optional[SubscriptionWrapper] = None
@@ -221,6 +227,7 @@ class PayloadContainer(BaseModel):
 
 class RazorpayWebhook(BaseModel):
     event: str
+    account_id: Optional[str] = "acc_default"
     contains: list[str] = []
     payload: PayloadContainer
     model_config = {"extra": "ignore"} 
@@ -234,6 +241,7 @@ class SimulationEvent(BaseModel):
     name:str 
     amount:int 
     language:str = "english"
+    account_id: Optional[str] = "acc_default"
 
 
 class CustomerAction(BaseModel):

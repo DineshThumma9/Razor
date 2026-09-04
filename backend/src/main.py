@@ -1,49 +1,63 @@
-import logging
-import os
 from contextlib import asynccontextmanager
-
-from config.db import _init_db
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+from config.config import settings
+from config.logger import setup_logging, get_logger
+from config.db import _init_db, init_checkpointer, close_checkpointer, close_db
+from config.clients import init_clients, cleanup_clients
+from background.worker import init_scheduler, shutdown_scheduler
+from service.broadcast import start_broadcast_listener, stop_broadcast_listener, stream_router
+from agent.utils import get_llm
+from agent.graph import get_compiled_agent
 from router.apis import api_router
 from router.listeners import router
 from router.simulate import router as sim_router
-from config.config import settings
 
-
-import uvicorn 
-
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-LOG_DIR = os.path.join(BASE_DIR, "../logs")
-os.makedirs(LOG_DIR, exist_ok=True)
-
-
-logging.basicConfig(
-    filename=os.path.join(LOG_DIR, "app.log"),
-    level=logging.INFO,
-    format="%(asctime)s[%(levelname)s]%(name)s:%(message)s",
-)
-
-
-from config.db import _init_db, init_checkpointer, close_checkpointer, close_db
-from config.clients import cleanup_clients
-from background.worker import broker
+# Initialize unified logging handlers
+setup_logging()
+logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("[Renvue] Initializing Postgres Schema...")
+    logger.info("[Lifespan] Initializing all application services and clients...")
+    # 1. Database & Checkpointer Pool
     _init_db()
     await init_checkpointer()
-    if not broker.is_worker_process:
-        await broker.startup()
+
+    # 2. Shared Network Clients (HTTP, Redis, Twilio)
+    await init_clients()
+
+    # 3. Background Taskiq Broker & ScheduleSource
+    await init_scheduler()
+
+    # 4. SSE Redis Broadcast Pub/Sub Listener
+    await start_broadcast_listener()
+
+    # 5. Agent Singletons Warmup (Compiled StateGraph & Tool-bound LLM)
+    get_compiled_agent()
+    get_llm()
+
+    logger.info("[Lifespan] All services, connection pools, and client singletons ready.")
+
     yield
-    print("[Renvue] Shutting down...")
-    if not broker.is_worker_process:
-        await broker.shutdown()
+
+    logger.info("[Lifespan] Shutting down application services and clients...")
+    # 1. Stop SSE Broadcast Listener
+    await stop_broadcast_listener()
+
+    # 2. Shutdown Taskiq Broker & ScheduleSource
+    await shutdown_scheduler()
+
+    # 3. Close Shared Network Clients (HTTP, Redis, Twilio)
+    await cleanup_clients()
+
+    # 4. Close Checkpointer Pool & Database Engines
     await close_checkpointer()
     await close_db()
-    await cleanup_clients()
+
+    logger.info("[Lifespan] All services and connection pools closed cleanly.")
 
 
 app = FastAPI(title="Renvue API", lifespan=lifespan)
@@ -60,8 +74,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-from service.broadcast import stream_router
 
 app.include_router(router)
 app.include_router(sim_router)

@@ -1,44 +1,24 @@
+from datetime import datetime, timedelta, timezone
+import random
+import time
+from fastapi import APIRouter, Depends
 
-
-
-
-
-
-from config.clients import get_http_client
-from models.models import RecoveryState
-from background.worker import invoke_agent_task
-from service.states import load_state
-from service.service import handle_inbound_whatsapp
-from config.db import get_db
-from service.service import handle_payment_event
-from models.schema import CustomerAction
-from requests import RequestException
-from models.schema import SimulationEvent
-from fastapi.routing import APIRouter
 from config.config import settings
+from config.db import get_db
+from config.logger import get_logger
+from models.models import RecoveryState
+from models.schema import CustomerAction, SimulationEvent
+from service.service import handle_inbound_whatsapp, handle_payment_event
+from service.states import load_state
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api")
 
 
-
-
-
-
-async def trigeer_webhook(payload:dict):
-    try:
-        response = await get_http_client().post(settings.backend_url,json=payload,timeout=5)
-        print(f"f -> Webhook fired! Status {response.status_code}")
-    except RequestException as e:
-        print(f"[WARNING] Failed to trigger webhook:{e}")
-
-import time
-import random
-from datetime import timedelta,timezone
-from datetime import datetime
-
-def fpayload_to_payload(fstate:SimulationEvent):
+def fpayload_to_payload(fstate: SimulationEvent):
      # Mock an order (represents a payment attempt that never completed)
-
+    acc_id = getattr(fstate, "account_id", None) or "acc_TestMode"
     amount_paise = int(round(float(fstate.amount) * 100))
 
     if fstate.event_type in ["order.failed", "failed_payment", "payment.failed"]:
@@ -59,7 +39,7 @@ def fpayload_to_payload(fstate:SimulationEvent):
         _id = f"pay_fail_{int(time.time())}_{int(random.random()*1000)}"
         webhook_payload = {
             "entity": "event",
-            "account_id": "acc_TestMode",
+            "account_id": acc_id,
             "event": "payment.failed",
             "contains": ["payment"],
             "payload": {
@@ -134,7 +114,7 @@ def fpayload_to_payload(fstate:SimulationEvent):
 
         webhook_payload = {
             "entity": "event",
-            "account_id": "acc_TestMode",
+            "account_id": acc_id,
             "event": "subscription.halted",
             "contains": ["subscription"],
             "payload": {
@@ -145,7 +125,7 @@ def fpayload_to_payload(fstate:SimulationEvent):
             "created_at": int(time.time())
         }
         
-        print(f"  → Created plan: {plan['id']}")
+        logger.info(f"Created plan: {plan['id']}")
         return webhook_payload, _id
 
     elif fstate.event_type in ["invoice_failed", "invoice.expired"] :
@@ -191,7 +171,7 @@ def fpayload_to_payload(fstate:SimulationEvent):
 
         webhook_payload = {
             "entity": "event",
-            "account_id": "acc_TestMode",
+            "account_id": acc_id,
             "event": "invoice.expired",
             "contains": ["invoice"],
             "payload": {
@@ -207,10 +187,6 @@ def fpayload_to_payload(fstate:SimulationEvent):
     return None, None
 
 
-
-from fastapi import Depends
-
-    
 
 @router.post("/fake-event")
 async def fake_event(fstate: SimulationEvent, db=Depends(get_db)):
@@ -279,8 +255,6 @@ async def generate_success_payload(case_id, db):
     }
 
 
-from fastapi import Depends 
-import config
 
 @router.post("/fake-action")
 async def fake_action(action: CustomerAction, db=Depends(get_db)):
@@ -291,6 +265,8 @@ async def fake_action(action: CustomerAction, db=Depends(get_db)):
     elif action.actions == "ignore":
         state = await load_state(action.case_id, db)
         if state:
+            if state.recovery_status in ["recovered", "closed", "escalated"]:
+                return {"status": f"Case is already {state.recovery_status}"}
             if state.active_task_id:
                 from background.worker import revoke_active_task
                 await revoke_active_task(state.active_task_id)

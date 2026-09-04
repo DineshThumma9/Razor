@@ -1,21 +1,23 @@
 from fastapi import APIRouter, Request, Form, BackgroundTasks
-import config.db
+from config.db import AsyncSessionLocal
+from config.logger import get_logger
 from service.service import handle_payment_event, handle_inbound_email, handle_inbound_whatsapp
 
+logger = get_logger(__name__)
 router = APIRouter()
 
 # We need wrappers for background tasks because they must manage their own DB sessions
 # since the request's DB session might close before the task completes.
 async def bg_payment_event(payload: dict):
-    async with config.db.AsyncSessionLocal() as session:
+    async with AsyncSessionLocal() as session:
         await handle_payment_event(payload, session)
 
 async def bg_inbound_email(payload: dict):
-    async with config.db.AsyncSessionLocal() as session:
+    async with AsyncSessionLocal() as session:
         await handle_inbound_email(payload, session)
         
 async def bg_inbound_whatsapp(from_number: str, body: str):
-    async with config.db.AsyncSessionLocal() as session:
+    async with AsyncSessionLocal() as session:
         await handle_inbound_whatsapp(from_number, body, session)
 
 

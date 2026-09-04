@@ -1,11 +1,9 @@
-import json
-import logging
-from ast import excepthandler
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
+from config.logger import get_logger
 
-logger = logging.getLogger("renvue.db")
+logger = get_logger(__name__)
 
 from config.config import settings
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
@@ -23,19 +21,35 @@ _checkpointer: AsyncPostgresSaver | None = None
 
 engine = None
 async_engine = None
-SessionLocal = None
-AsyncSessionLocal = None
+_SessionLocal = None
+_AsyncSessionLocal = None
 _connection_failed = False
 
 
+class _SessionMakerProxy:
+    def __call__(self, *args, **kwargs):
+        _init_db()
+        return _SessionLocal(*args, **kwargs)
+
+
+class _AsyncSessionMakerProxy:
+    def __call__(self, *args, **kwargs):
+        _init_db()
+        return _AsyncSessionLocal(*args, **kwargs)
+
+
+SessionLocal = _SessionMakerProxy()
+AsyncSessionLocal = _AsyncSessionMakerProxy()
+
+
 def _init_db():
-    global engine, async_engine, SessionLocal, AsyncSessionLocal, _connection_failed
+    global engine, async_engine, _SessionLocal, _AsyncSessionLocal, _connection_failed
 
     if engine is not None:
         return
 
     if _connection_failed:
-        raise RuntimeError("Database connection was alredy attempted and failed")
+        raise RuntimeError("Database connection was already attempted and failed")
 
     if not settings.postgres_url:
         logger.critical("DATABASE_URL env var not set")
@@ -43,7 +57,7 @@ def _init_db():
         raise RuntimeError("DATABASE URL not configured")
 
     try:
-        logger.info("Connectiog to database")
+        logger.info("Connecting to database")
         engine = create_engine(
             settings.postgres_url,
             pool_pre_ping=True,
@@ -67,14 +81,21 @@ def _init_db():
             pool_timeout=settings.db_pool_timeout,
             connect_args={"prepare_threshold": None},
         )
-        SessionLocal = sessionmaker(autoflush=False, autocommit=False, bind=engine)
-        AsyncSessionLocal = async_sessionmaker(
+        _SessionLocal = sessionmaker(autoflush=False, autocommit=False, bind=engine)
+        _AsyncSessionLocal = async_sessionmaker(
             bind=async_engine, autoflush=True, class_=AsyncSession, expire_on_commit=False
         )
         SQLModel.metadata.create_all(engine)
+        try:
+            with engine.begin() as conn:
+                conn.exec_driver_sql("ALTER TABLE recovery_cases ADD COLUMN IF NOT EXISTS account_id VARCHAR DEFAULT 'acc_default';")
+                conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_recovery_cases_account_id ON recovery_cases (account_id);")
+                conn.exec_driver_sql("ALTER TABLE recovery_cases ADD COLUMN IF NOT EXISTS case_metadata JSON DEFAULT '{}';")
+        except Exception as mig_err:
+            logger.warning(f"Database migration notice (non-fatal): {mig_err}")
         logger.info("Database connection established")
     except Exception as e:
-        logger.critical(f"Failed to connect to db:{str(e)}")
+        logger.critical(f"Failed to connect to db: {str(e)}")
         _connection_failed = True
         raise SystemExit("Database connection failed")
 
