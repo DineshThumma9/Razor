@@ -14,25 +14,7 @@ stream_router = APIRouter(prefix="/api", tags=["stream"])
 _subscribers: Set[asyncio.Queue] = set()
 _listener_task: asyncio.Task | None = None
 
-def state_to_case_dict(state: RecoveryState) -> dict:
-    return {
-        "case_id": state.case_id,
-        "source_id": state.source_id,
-        "case_type": state.case_type,
-        "decline_type": state.decline_type,
-        "failure_reason": state.failure_reason,
-        "amount_inr": state.amount_inr,
-        "recovered_amount": state.recovered_amount,
-        "customer": state.customer or {},
-        "contact_preference": state.contact_preference,
-        "language": state.language,
-        "recovery_status": state.recovery_status,
-        "attempt_count": state.attempt_count,
-        "last_action_taken": state.last_action_taken,
-        "first_seen_at": state.first_seen_at.isoformat() if state.first_seen_at else None,
-        "next_retry_at": state.next_retry_at.isoformat() if state.next_retry_at else None,
-        "audit_log": state.audit_log or [],
-    }
+
 
 async def _redis_listener():
     """Background task in web process to receive broadcasts from worker processes."""
@@ -67,7 +49,7 @@ def _ensure_redis_listener():
 
 async def broadcast_case_update(state: RecoveryState):
     try:
-        case_data = state_to_case_dict(state)
+        case_data = state.model_dump(mode="json")
         payload = json.dumps({"type": "CASE_UPDATED", "data": case_data})
         # 1. Deliver to local process subscribers
         for q in list(_subscribers):

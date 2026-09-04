@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from router.apis import api_router
 from router.listeners import router
-from router.sitmulate import router as sim_router
+from router.simulate import router as sim_router
 from config.config import settings
 
 

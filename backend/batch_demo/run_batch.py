@@ -83,6 +83,7 @@ from models.models import RecoveryState
 from service.states import load_state, save_state
 from agent.graph import build_agent
 from service.service import handle_payment_event, handle_inbound_whatsapp
+from config.config import settings
 try:
     from batch_demo.payload_builder import build_rich_webhook_payload
 except ImportError:
@@ -257,20 +258,60 @@ async def execute_scenario(scen: dict, index: int) -> dict:
 
     sim = scen.get("simulation", {})
     action = sim.get("customer_action", "")
-    discount_pct = float(sim.get("discount_applied", 0.0))
-    discount_inr = round(amount_inr * (discount_pct / 100.0), 2)
+
+    # Fetch intermediate state to verify agent actions & policy compliance
+    async with app_db.AsyncSessionLocal() as db:
+        mid_state = await load_state(case_uuid, db)
+
+    payment_eligible = False
+    actual_discount_pct = 0.0
+
+    # Policy Guardrail 1: Escalated, closed, or failed cases do not autonomously settle
+    if not mid_state or mid_state.recovery_status in ["escalated", "closed", "failed"]:
+        payment_eligible = False
+    # Policy Guardrail 2: Strict stopping rules — max 3 touches
+    elif mid_state.attempt_count > 3:
+        payment_eligible = False
+    else:
+        err_details = mid_state.error_details or {}
+        audit_events = {entry.get("event_triggered") for entry in (mid_state.audit_log or [])}
+        has_payment_link = bool(err_details.get("payment_link")) or "create_payment_link" in audit_events
+        has_outreach = bool(audit_events.intersection({"send_whatsapp_msg", "send_email_reminder", "get_voice_call"}))
+
+        if action in ["pays_via_link", "pays_on_milestone", "pays_after_voice", "authorizes_otp_link"]:
+            # Customer pays only if agent successfully created a payment link or engaged via outbound outreach
+            if has_payment_link or has_outreach:
+                payment_eligible = True
+                actual_discount_pct = float(err_details.get("discount_pct", 0.0))
+        elif action == "negotiates_and_pays":
+            # Dynamic Negotiation Rule: Customer pays ONLY if concession offered falls within bounded policy (5% - 30%)
+            agent_disc = float(err_details.get("discount_pct", 0.0))
+            if agent_disc == 0.0 and sim.get("discount_applied"):
+                agent_disc = float(sim.get("discount_applied", 0.0))
+
+            min_disc = float(settings.min_discount)
+            max_disc = float(settings.max_discount)
+            if min_disc <= agent_disc <= max_disc:
+                payment_eligible = True
+                actual_discount_pct = agent_disc
+            else:
+                payment_eligible = False
+        elif action == "auto_retry_success":
+            # Customer card charged successfully only if an auto-retry was legitimately scheduled
+            if mid_state.next_retry_at is not None or "schedule_auto_retry" in audit_events:
+                payment_eligible = True
+        elif action == "ptp_logged_and_paid":
+            # Customer honors commitment if PTP was properly recorded and follow-up paused
+            if err_details.get("ptp_date") or "log_promise_to_pay" in audit_events or mid_state.next_retry_at is not None:
+                payment_eligible = True
+        elif action == "partial_then_cleared":
+            # Clearance of outstanding balance on valid invoice
+            payment_eligible = True
+
+    discount_inr = round(amount_inr * (actual_discount_pct / 100.0), 2)
     effective_recoverable = round(amount_inr - discount_inr, 2)
-    
-    if action in [
-        "pays_via_link", 
-        "pays_on_milestone", 
-        "pays_after_voice", 
-        "authorizes_otp_link", 
-        "auto_retry_success", 
-        "negotiates_and_pays", 
-        "partial_then_cleared", 
-        "ptp_logged_and_paid"
-    ]:
+
+    if payment_eligible:
         # Simulate payment capture
         capture_payload = {
             "entity": "event",

@@ -18,8 +18,8 @@ class Settings(BaseSettings):
     resend_api_key:str=""
     twilo_whatsapp_number:str=""
     model:str = ""
-    min_discount:int=0
-    max_discount:int=0
+    max_discount:int=Field(default=30,alias="MAX_DISCOUNT_ALLOWED")
+    min_discount:int=Field(default=5,alias="MIN_DISCOUNT_ALLOWED")
     redis_url:str = Field(default="", alias="REDIS_URL")
     postgres_url:str=""
     database_url:str=""
@@ -32,5 +32,7 @@ class Settings(BaseSettings):
     backend_url:str = ""
     demo_mode:bool = False 
     port:int = 8000 
+    max_grace_period:int=7
+
 
 settings = Settings()

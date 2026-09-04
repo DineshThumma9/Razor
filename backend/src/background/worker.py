@@ -11,9 +11,10 @@ from models.models import RecoveryState
 import config.db as app_db
 from sqlmodel import select
 from agent.graph import build_agent
-
 from config.config import settings
 redis_url = settings.redis_url
+
+
 broker = ListQueueBroker(
     redis_url,
     socket_timeout=None,
@@ -24,10 +25,7 @@ scheduler = TaskiqScheduler(broker, [schedule_source])
 @broker.task(task_name='worker.invoke_agent_task')
 async def invoke_agent_task(case_id: str):
     print(f"[TASKIQ] Waking up agent for case {case_id}...")
-    
-    # Worker is a separate process — must initialize the DB session factory
     app_db._init_db()
-    
     async with app_db.AsyncSessionLocal() as db:
         state = await load_state(case_id, db)
         if not state or state.recovery_status in ["recovered", "closed", "escalated"]:

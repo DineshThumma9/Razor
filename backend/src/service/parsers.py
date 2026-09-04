@@ -77,25 +77,39 @@ async def parse_webhook(payload: dict, db: AsyncSession) -> RecoveryState | None
     if "subscription" in contains and webhook.payload.subscription:
         s = webhook.payload.subscription.entity
         try:
-            cust = client.customer.fetch(s.customer_id)
-            customer["name"] = cust.get("name", "Customer")
-            customer["email"] = cust.get("email", "")
-            customer["contact"] = cust.get("contact", "")
+            if s.customer_id and not s.customer_id.startswith("cust_mock"):
+                cust = client.customer.fetch(s.customer_id)
+                customer["name"] = cust.get("name", "Customer")
+                customer["email"] = cust.get("email", "")
+                customer["contact"] = cust.get("contact", "")
         except Exception:
+            pass
+
+        if not customer.get("name") or customer.get("name") == "Customer":
             if s.notes:
-                customer["name"] = s.notes.customer_name or "Customer"
-                customer["email"] = s.notes.customer_email or ""
-                customer["contact"] = s.notes.customer_contact or ""
-                language = s.notes.language or "english"
+                customer["name"] = getattr(s.notes, "customer_name", None) or "Customer"
+                customer["email"] = getattr(s.notes, "customer_email", None) or ""
+                customer["contact"] = getattr(s.notes, "customer_contact", None) or ""
+                language = getattr(s.notes, "language", None) or "english"
+
         case_id = s.id
         source_id = s.plan_id or "unknown"
+
+        if getattr(s, "amount", None):
+            amount = float(s.amount) / 100.0
+        elif s.notes and getattr(s.notes, "amount", None):
+            amount = float(s.notes.amount)
+
+        if s.notes:
+            failure_reason = getattr(s.notes, "halt_reason", None) or getattr(s.notes, "failure_reason", None) or "Subscription charge failed"
         
     elif "invoice" in contains and webhook.payload.invoice:
         s = webhook.payload.invoice.entity
         if s.customer_details:
-            customer["name"] = s.customer_details.name or "Customer"
-            customer["email"] = s.customer_details.email or ""
-            customer["contact"] = s.customer_details.contact or ""
+            cd = s.customer_details
+            customer["name"] = getattr(cd, "name", None) or getattr(cd, "customer_name", None) or "Customer"
+            customer["email"] = getattr(cd, "email", None) or getattr(cd, "customer_email", None) or ""
+            customer["contact"] = getattr(cd, "contact", None) or getattr(cd, "customer_contact", None) or ""
         case_id = s.id
         source_id = s.order_id or "unknown"
         amount = float(s.amount) / 100.0

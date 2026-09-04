@@ -32,11 +32,8 @@ class RecoveryState(SQLModel, table=True):
     case_id: str = Field(primary_key=True)  # our internal ID (uuid)
     source_id: str                          # Razorpay order/sub/invoice ID
     
-
     method:Optional[str] = None 
     through:Optional[str] = None 
-    
-    # What happened
     case_type: str                          # failed_payment | abandoned_checkout | ...
     decline_type: Optional[str] = None      # hard | soft | None
     failure_reason: Optional[str] = None    # "Insufficient funds" | "Card expired" | None
@@ -55,12 +52,12 @@ class RecoveryState(SQLModel, table=True):
     recovery_status: str = "pending"        # pending | in_progress | recovered | escalated | closed
     attempt_count: int = 0
     last_action_taken: Optional[str] = None
-    first_seen_at: datetime
+    first_seen_at: datetime = Field(default_factory=datetime.now)
     next_retry_at: Optional[datetime] = None
 
     # History (JSON)
     audit_log: List[dict] = Field(default_factory=list, sa_column=Column(JSON))
     
     # Background Tasks
-    active_task_id: Optional[str] = None
+    active_task_id: Optional[str] = Field(default=None,exclude=True)
 

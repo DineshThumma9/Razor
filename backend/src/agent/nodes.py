@@ -146,6 +146,83 @@ def get_escalation_tone(rs: RecoveryState) -> tuple[str, str, str]:
     return wa_msg, email_urg, voice_msg
 
 
+def should_send_channel(rs: RecoveryState, channel: str) -> bool:
+    """
+    Determines whether a communication channel (email, whatsapp, voice) should be dispatched
+    based on customer contact_preference, available contact details, and compliance rules.
+    """
+    pref = (getattr(rs, "contact_preference", None) or rs.customer.get("contact_preference", "")).lower()
+    has_email = bool(rs.customer.get("email"))
+    has_phone = bool(rs.customer.get("contact"))
+
+    if channel == "email":
+        if not has_email:
+            return False
+        # Overdue B2B invoices always need formal email dunning
+        if rs.case_type == "overdue_invoice":
+            return True
+        # If customer explicitly prefers email, or has no phone, or attempt >= 2 (escalated outreach)
+        return pref == "email" or not has_phone or (rs.attempt_count or 0) >= 2
+
+    elif channel == "whatsapp":
+        if not has_phone:
+            return False
+        # If customer explicitly prefers email and has valid email, respect opt-out on early attempts
+        if pref == "email" and has_email and (rs.attempt_count or 0) < 2:
+            return False
+        return True
+
+    elif channel == "voice":
+        if not has_phone:
+            return False
+        # Compliance & TRAI DND rule: Never initiate unsolicited voice calls if customer opted for email or whatsapp
+        if pref in ["email", "whatsapp"]:
+            return False
+        # Voice is only allowed for high-value debts (> 5k) where preference is 'call' or unconstrained
+        return pref == "call" or ((rs.attempt_count or 0) >= 2 and rs.amount_inr > 5000)
+
+    return False
+
+
+logger = logging.getLogger("renvue.nodes")
+
+async def mark_case_escalated(rs: RecoveryState, reason: str):
+    """
+    Persists escalation status to DB, cancels pending background tasks,
+    logs the audit trail, and broadcasts an SSE update to the dashboard.
+    """
+    rs.recovery_status = "escalated"
+    rs.last_action_taken = "escalate_to_human"
+    rs.next_retry_at = None
+
+    async with config.db.AsyncSessionLocal() as db:
+        if getattr(rs, "active_task_id", None):
+            try:
+                from background.worker import revoke_active_task
+                await revoke_active_task(rs.active_task_id)
+                rs.active_task_id = None
+            except Exception as e:
+                logger.warning(f"[HIL] Could not revoke task: {e}")
+
+        from agent.tools import _log_audit
+        await _log_audit(
+            rs,
+            "escalate_to_human",
+            None,
+            db,
+            message=f"Escalated to human ops: {reason}",
+            channel="system",
+            direction="internal",
+        )
+        await save_state(rs, db)
+
+    try:
+        from service.broadcast import broadcast_case_update
+        await broadcast_case_update(rs)
+    except Exception as e:
+        logger.warning(f"[HIL] Could not broadcast escalation: {e}")
+
+
 async def decide_event(state: AgentState):
     """
     Phase 1: Deterministic fast-path for standard automated cases.
@@ -193,37 +270,54 @@ async def decide_event(state: AgentState):
 
     if rs.attempt_count >= 3:
         context_str = f"Context: Name={rs.customer.get('name', 'Unknown')}, Amount=₹{rs.amount_inr:,.0f}, Case={rs.case_type}, Last Action={rs.last_action_taken}"
-        tools_to_call.append({"name": "escalate_to_human", "args": {"reason": f"Max attempts ({rs.attempt_count}) reached. {context_str}"}})
+        reason = f"Max attempts ({rs.attempt_count}) reached. {context_str}"
+        tools_to_call.append({"name": "escalate_to_human", "args": {"reason": reason}})
+        await mark_case_escalated(rs, reason)
     elif rs.case_type == 'dispute':
-        tools_to_call.append({"name": "escalate_to_human", "args": {"reason": "Customer raised a dispute"}})
+        reason = "Customer raised a dispute"
+        tools_to_call.append({"name": "escalate_to_human", "args": {"reason": reason}})
+        await mark_case_escalated(rs, reason)
         
     elif rs.case_type == 'subscription_cancelled':
-        tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": wa_msg}})
+        if should_send_channel(rs, "whatsapp"):
+            tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": wa_msg}})
+        elif should_send_channel(rs, "email"):
+            tools_to_call.append({"name": "send_email_reminder", "args": {"urgency": email_urg}})
         
     elif rs.case_type in ['failed_payment', 'failed_subscription']:
-        tools_to_call.append({"name": "send_email_reminder", "args": {"urgency": email_urg}})
+        if should_send_channel(rs, "email"):
+            tools_to_call.append({"name": "send_email_reminder", "args": {"urgency": email_urg}})
+
         if rs.amount_inr > 15000 and rs.case_type == "failed_subscription":
             # The Above ₹15,000 EMI Rule
             tools_to_call.append({"name": "create_payment_link", "args": {}})
-            tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": f"Your auto-debit for ₹{rs.amount_inr:,.0f} failed. Under RBI rules, amounts over ₹15,000 require an OTP. Please click the link to authorize. (Ref: #RNV-{ref_code})"}})
+            if should_send_channel(rs, "whatsapp"):
+                tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": f"Your auto-debit for ₹{rs.amount_inr:,.0f} failed. Under RBI rules, amounts over ₹15,000 require an OTP. Please click the link to authorize. (Ref: #RNV-{ref_code})"}})
         elif rs.decline_type == "soft":
             if (rs.attempt_count or 0) == 0:
                 tools_to_call.append({"name": "get_next_salary_date", "args": {}})
-            tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": wa_msg}})
+            if should_send_channel(rs, "whatsapp"):
+                tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": wa_msg}})
         else:
             tools_to_call.append({"name": "create_payment_link", "args": {}})
-            if rs.amount_inr > 5000:
+            if should_send_channel(rs, "voice"):
                 tools_to_call.append({"name": "get_voice_call", "args": {"msg": voice_msg}})
-            else:
+            elif should_send_channel(rs, "whatsapp"):
                 tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": wa_msg}})
                 
     elif rs.case_type == 'abandoned_checkout':
-        tools_to_call.append({"name": "create_payment_link", "args": {}})
-        tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": f"You left something in your cart! Complete your checkout now and enjoy a 10% discount. Click the payment link to complete your order. (Ref: #RNV-{ref_code})"}})
+        tools_to_call.append({"name": "create_payment_link", "args": {"discount_pct": 10.0}})
+        if should_send_channel(rs, "whatsapp"):
+            tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": f"You left something in your cart! Complete your checkout now and enjoy a 10% discount. Click the payment link to complete your order. (Ref: #RNV-{ref_code})"}})
+        elif should_send_channel(rs, "email"):
+            tools_to_call.append({"name": "send_email_reminder", "args": {"urgency": email_urg}})
+
     elif rs.case_type == 'overdue_invoice':
         tools_to_call.append({"name": "create_payment_link", "args": {}})
-        tools_to_call.append({"name": "send_email_reminder", "args": {"urgency": email_urg}})
-        tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": wa_msg}})
+        if should_send_channel(rs, "email"):
+            tools_to_call.append({"name": "send_email_reminder", "args": {"urgency": email_urg}})
+        if should_send_channel(rs, "whatsapp"):
+            tools_to_call.append({"name": "send_whatsapp_msg", "args": {"msg": wa_msg}})
 
     if tools_to_call:
         langchain_tool_calls = []
@@ -250,18 +344,20 @@ async def decide_reply(state: AgentState):
     rs = state["recovery_state"]
     print(f"\n[ROUTER] LLM routing conversational reply for case: {rs.case_id}")
     
-    if rs.attempt_count >= 3:
+    if rs.attempt_count >= 3 and state.get("event_source") != "inbound.human_approval":
         print(f"\n[ROUTER] Deterministic stop in decide_reply: attempt count {rs.attempt_count} >= 3")
         context_str = f"Context: Name={rs.customer.get('name', 'Unknown')}, Amount=₹{rs.amount_inr:,.0f}, Case={rs.case_type}, Last Action={rs.last_action_taken}"
+        reason = f"Max attempts ({rs.attempt_count}) reached. {context_str}"
         ai_msg = AIMessage(
             content="Max attempts reached.", 
             tool_calls=[{
                 "name": "escalate_to_human", 
-                "args": {"reason": f"Max attempts ({rs.attempt_count}) reached. {context_str}"},
+                "args": {"reason": reason},
                 "id": f"call_{uuid.uuid4().hex[:8]}",
                 "type": "tool_call"
             }]
         )
+        await mark_case_escalated(rs, reason)
         return {"messages": [ai_msg]}
     
     system_prompt = f"""You are an empathetic, intelligent revenue recovery concierge for Renvue.
@@ -277,11 +373,19 @@ Max Discount : {settings.max_discount}%
 Min Discount : {settings.min_discount}%
 
 === CORE RECOVERY RULES ===
-1. STOPPING RULE: If Attempt Count >= 3, you MUST call 'escalate_to_human' and STOP. No further outreach.
-2. PROMISE TO PAY: If the customer agrees to pay at a future date (e.g. 'on 18th', 'next monday', 'after salary'), extract the date (YYYY-MM-DD) and call 'log_promise_to_pay'.
-3. NEGOTIATION: If abandoned checkout and user hesitates, negotiate between {settings.min_discount}% and {settings.max_discount}% discount.
-4. OUTREACH: If customer asks a question or replies, use 'send_whatsapp_msg' to reply.
-5. ESCALATION: Do NOT escalate unless customer is hostile/angry, explicitly demands a human manager, or Attempt Count >= 3.
+1. STOPPING RULE: If Attempt Count >= 3 (and not explicitly authorized by human approval), you MUST call 'escalate_to_human' and STOP. If Human Approved, proceed with the requested recovery action.
+2. PROMISE TO PAY & COMMITMENTS: When a customer proposes, promises, or mentions ANY date or commitment to pay (e.g., 'on 18th', 'next monday', '1st of 2078', 'yesterday', 'after salary', '5th of this month'):
+   - You MUST extract the date in YYYY-MM-DD format and call 'log_promise_to_pay(date_str=..., reason=..., sentiment=...)'.
+   - The backend enforces strict policy guardrails (validates future date, ensures within {settings.max_grace_period}-day max grace period, and rejects past or absurd dates like 2078).
+   - If the customer gives an absurd date, past date, or refuses to give a valid date, you may also directly call 'escalate_to_human(reason=...)'.
+   - NEVER output plain conversational text asking for clarification when a customer specifies a date. You MUST call 'log_promise_to_pay' or 'escalate_to_human'.
+3. NEGOTIATION: If abandoned checkout and user hesitates, negotiate between {settings.min_discount}% and {settings.max_discount}% discount. When agreeing on a discount, call 'create_payment_link' with 'discount_pct' to generate the discounted payment link.
+4. OUTREACH: If customer asks a question or replies, use 'send_whatsapp_msg' to reply. Any payment link generated will automatically be attached to your message. You may also explicitly position it using the placeholder '{{payment_link}}'.
+5. ESCALATION: Call 'escalate_to_human' if:
+   - Customer proposes an invalid, past, or absurd promise-to-pay date (> {settings.max_grace_period} days from today).
+   - Customer is hostile, abusive, or explicitly requests a human manager.
+   - Attempt Count >= 3 (and not explicitly authorized by human approval).
+   DO NOT escalate for polite negotiation or normal questions.
 
 === B2B COMMERCIAL INVOICE RULES ===
 - If Case type is 'overdue_invoice': You are communicating with an Accounts Payable (AP) / Finance Manager. Maintain formal corporate finance decorum.
@@ -320,6 +424,68 @@ Min Discount : {settings.min_discount}%
     for attempt in range(5):
         try:
             response = await llm_with_tools.ainvoke(clean_messages)
+            if getattr(response, "tool_calls", None):
+                for call in response.tool_calls:
+                    if call["name"] == "escalate_to_human":
+                        reason = call.get("args", {}).get("reason", "Escalated by conversational agent")
+                        await mark_case_escalated(rs, reason)
+                        break
+                return {"messages": [response]}
+
+            # Fallback Guardrail: If customer message expressed intent to pay on a date, but LLM produced no tool calls
+            last_user_text = ""
+            for m in reversed(clean_messages):
+                if getattr(m, "type", "") == "human":
+                    last_user_text = str(getattr(m, "content", ""))
+                    break
+
+            ptp_kws = ["pay", "clear", "settle", "transfer", "promise", "send money", "tomorrow", "yesterday", "month", "friday", "monday", "tuesday", "wednesday", "thursday", "saturday", "sunday"]
+            if any(k in last_user_text.lower() for k in ptp_kws):
+                import re
+                from dateutil.parser import parse
+                from agent.tools import sanity_date
+                
+                text_lower = last_user_text.lower()
+                candidate_date = None
+                now = datetime.now()
+                
+                if "yesterday" in text_lower:
+                    candidate_date = now - timedelta(days=1)
+                elif "tomorrow" in text_lower:
+                    candidate_date = now + timedelta(days=1)
+                else:
+                    temporal_pattern = r'(?:\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b|\b(?:mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)\b|\b\d{1,2}(?:st|nd|rd|th)\b|\b(?:on|by|before)\s+\d{1,2}\b|\b\d{4}\b|\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b|\b(?:this|next)\s+month\b)'
+                    if re.search(temporal_pattern, text_lower):
+                        try:
+                            candidate_date = parse(last_user_text, fuzzy=True, default=datetime(now.year, now.month, now.day, 10, 0))
+                        except Exception:
+                            candidate_date = None
+
+                if candidate_date:
+                    valid, v_reason = sanity_date(candidate_date)
+                    if not valid:
+                        esc_reason = f"Customer proposed invalid/past promise date: {candidate_date.strftime('%Y-%m-%d')} ({v_reason})"
+                        esc_call = {
+                            "name": "escalate_to_human",
+                            "args": {"reason": esc_reason},
+                            "id": f"call_{uuid.uuid4().hex[:8]}",
+                            "type": "tool_call"
+                        }
+                        await mark_case_escalated(rs, esc_reason)
+                        return {"messages": [AIMessage(content="", tool_calls=[esc_call])]}
+                    else:
+                        ptp_call = {
+                            "name": "log_promise_to_pay",
+                            "args": {
+                                "date_str": candidate_date.strftime("%Y-%m-%d"),
+                                "reason": f"Customer committed to pay: {last_user_text.strip()}",
+                                "sentiment": "Neutral"
+                            },
+                            "id": f"call_{uuid.uuid4().hex[:8]}",
+                            "type": "tool_call"
+                        }
+                        return {"messages": [AIMessage(content="", tool_calls=[ptp_call])]}
+
             return {"messages": [response]}
         except Exception as e:
             err_str = str(e).lower()
@@ -398,7 +564,7 @@ async def audit(state: AgentState):
         if last_ai_msg and last_ai_msg.tool_calls:
             if any(call["name"] == "complete_case" for call in last_ai_msg.tool_calls):
                 rs.recovery_status = "closed"
-            elif any(call["name"] == "escalate_to_human" for call in last_ai_msg.tool_calls):
+            elif any(call["name"] == "escalate_to_human" for call in last_ai_msg.tool_calls) or rs.recovery_status == "escalated":
                 rs.recovery_status = "escalated"
 
             # Don't increment beyond 3 if escalated or closed
@@ -451,8 +617,12 @@ def after_execute(state: AgentState):
     for msg in reversed(messages):
         msg_type = getattr(msg, "type", "")
         msg_name = getattr(msg, "name", None)
-        if msg_type == "tool" and msg_name in ("complete_case", "escalate_to_human", "log_promise_to_pay", "send_whatsapp_msg", "send_email_reminder"):
-            return "audit"
+        if msg_type == "tool":
+            if msg_name == "log_promise_to_pay" and "PROMISE_REJECTED" in str(getattr(msg, "content", "")):
+                # Rejected promise has already been directly escalated to human in tool
+                return "audit"
+            if msg_name in ("complete_case", "escalate_to_human", "log_promise_to_pay", "send_whatsapp_msg", "send_email_reminder"):
+                return "audit"
         # Stop looking once we pass the current tool results batch
         if msg_type == "ai":
             break

@@ -46,14 +46,21 @@ class CustomerDetails(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None
     contact: Optional[str] = None
-    model_config = {"extra": "ignore"}
+    customer_name: Optional[str] = None
+    customer_email: Optional[str] = None
+    customer_contact: Optional[str] = None
+    model_config = {"extra": "allow"}
 
 class Notes(BaseModel):
     customer_name: Optional[str] = None
     customer_email: Optional[str] = None
     customer_contact: Optional[str] = None
     language: Optional[str] = None
-    model_config = {"extra": "ignore"}
+    failure_reason: Optional[str] = None
+    halt_reason: Optional[str] = None
+    amount: Optional[float] = None
+    scenario: Optional[str] = None
+    model_config = {"extra": "allow"}
 
 class CardEntity(BaseModel):
     id: Optional[str] = None
@@ -96,7 +103,8 @@ class PaymentEntity(BaseModel):
 
 class SubscriptionEntity(BaseModel):
     id: str
-    customer_id: str
+    customer_id: Optional[str] = None
+    amount: Optional[float] = None
     status: Optional[str] = None
     plan_id: Optional[str] = None
     charge_at: Optional[int] = None
@@ -189,7 +197,10 @@ class CompleteCaseArgs(BaseModel):
     summary: str = Field(default="Case completed.", description="Summary of actions taken to resolve the case.")
 
 class PaymentLinkArgs(BaseModel):
-    pass # No arguments needed!
+    discount_pct: float = Field(
+        default=0.0,
+        description="Optional concession/discount percentage to apply (must be bounded between MIN_DISCOUNT and MAX_DISCOUNT, e.g. 5% to 30%)."
+    )
 
 class EscalateArgs(BaseModel):
     reason: str = Field(description="Detailed reason for why this case is being escalated.")

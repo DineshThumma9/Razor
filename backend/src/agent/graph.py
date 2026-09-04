@@ -66,9 +66,10 @@ def build_agent(state: RecoveryState):
     
     workflow.add_edge("audit", END)
 
-    # Compile the graph
+    # Compile the graph with native Human-in-the-Loop breakpoint
     app = workflow.compile(
-        checkpointer=get_checkpointer()
+        checkpointer=get_checkpointer(),
+        interrupt_before=["escalate_gate"]
     )
     
     if not os.path.exists("agent_workflow.png"):

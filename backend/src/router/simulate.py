@@ -6,21 +6,13 @@
 
 from config.clients import get_http_client
 from models.models import RecoveryState
-from elevenlabs.types import asr_conversational_config
-from elevenlabs.types import asr_conversational_config
-from elevenlabs.types import asr_conversational_config
-from elevenlabs.types import asr_conversational_config
 from background.worker import invoke_agent_task
-from background.worker import broker
 from service.states import load_state
 from service.service import handle_inbound_whatsapp
 from config.db import get_db
 from service.service import handle_payment_event
 from models.schema import CustomerAction
-from aiohttp import log
-from os import fstatvfs
 from requests import RequestException
-from config.clients import http_client
 from models.schema import SimulationEvent
 from fastapi.routing import APIRouter
 from config.config import settings
@@ -49,7 +41,7 @@ def fpayload_to_payload(fstate:SimulationEvent):
 
     amount_paise = int(round(float(fstate.amount) * 100))
 
-    if fstate.event_type == "order.failed":
+    if fstate.event_type in ["order.failed", "failed_payment", "payment.failed"]:
         
         order = {
             "id": f"order_mock_{int(time.time())}_{random.random()*10}",
@@ -92,7 +84,7 @@ def fpayload_to_payload(fstate:SimulationEvent):
         
         return webhook_payload, _id 
 
-    elif fstate.event_type == "subscription_failed":
+    elif fstate.event_type in ["subscription_failed", "subscription.halted"]:
         plan = {
         "id": f"plan_mock_{int(time.time())}",
         "period": "monthly",
@@ -107,9 +99,20 @@ def fpayload_to_payload(fstate:SimulationEvent):
         start_at = int((datetime.now(timezone.utc) + timedelta(hours=1)).timestamp())
 
         _id = f"sub_mock_{int(time.time())}"
+        cust_id = f"cust_mock_{int(time.time())}"
+        decline_reason = fstate.decline_reason or random.choice(
+            [
+                "Payment method expired",
+                "Insufficient funds",
+                "User cancellation",
+                "Declined by bank"
+            ]
+        )
         sub = {
             "id": _id,
+            "customer_id": cust_id,
             "plan_id": plan["id"],
+            "amount": amount_paise,
             "total_count": 12,
             "customer_notify": 1,
             "start_at": start_at,
@@ -123,14 +126,9 @@ def fpayload_to_payload(fstate:SimulationEvent):
                 "customer_email": fstate.email,
                 "customer_contact": fstate.phone,
                 "scenario": "subscription_halted",
-                "halt_reason": random.choice(
-                    [
-                        "Payment method expired",
-                        "Insufficient funds",
-                        "User cancellation",
-                        "Declined by bank"
-                    ]
-                )
+                "halt_reason": decline_reason,
+                "failure_reason": decline_reason,
+                "amount": fstate.amount,
             },
         }
 
@@ -147,10 +145,10 @@ def fpayload_to_payload(fstate:SimulationEvent):
             "created_at": int(time.time())
         }
         
-        log(f"  → Created plan: {plan['id']}")
+        print(f"  → Created plan: {plan['id']}")
         return webhook_payload, _id
 
-    elif fstate.event_type == "invoice_failed":
+    elif fstate.event_type in ["invoice_failed", "invoice.expired"] :
         rzp_cust = {
             "id": f"cust_mock_{int(time.time())}",
             "name": fstate.name,
@@ -169,6 +167,9 @@ def fpayload_to_payload(fstate:SimulationEvent):
             "currency": "INR",
             "date": int(time.time()),
             "customer_details": {
+                "name": fstate.name,
+                "email": fstate.email,
+                "contact": fstate.phone,
                 "customer_name": fstate.name,
                 "customer_email": fstate.email,
                 "customer_contact": fstate.phone,
