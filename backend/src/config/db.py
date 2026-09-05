@@ -51,15 +51,22 @@ def _init_db():
     if _connection_failed:
         raise RuntimeError("Database connection was already attempted and failed")
 
-    if not settings.postgres_url:
+    db_url = settings.postgres_url or settings.database_url
+    if not db_url:
         logger.critical("DATABASE_URL env var not set")
         _connection_failed = True
         raise RuntimeError("DATABASE URL not configured")
 
     try:
         logger.info("Connecting to database")
+        sync_url = db_url
+        if sync_url.startswith("postgresql://"):
+            sync_url = sync_url.replace("postgresql://", "postgresql+psycopg://", 1)
+        elif sync_url.startswith("postgres://"):
+            sync_url = sync_url.replace("postgres://", "postgresql+psycopg://", 1)
+
         engine = create_engine(
-            settings.postgres_url,
+            sync_url,
             pool_pre_ping=True,
             pool_recycle=settings.db_pool_recycle,
             pool_size=settings.db_pool_size,
@@ -68,10 +75,7 @@ def _init_db():
             connect_args={"connect_timeout": 5},
         )
 
-        async_url = settings.postgres_url.replace(
-            "postgresql://", "postgresql+psycopg://", 1
-        )
-
+        async_url = sync_url
         async_engine = create_async_engine(
             async_url,
             pool_pre_ping=True,
@@ -126,8 +130,9 @@ def get_task_db():
 
 async def init_checkpointer():
     global _pool, _checkpointer
+    conn_url = settings.database_url or settings.postgres_url
     _pool = AsyncConnectionPool(
-        conninfo=settings.database_url,
+        conninfo=conn_url,
         max_size=settings.db_checkpointer_pool_size,
         max_lifetime=300,
         max_idle=30,
