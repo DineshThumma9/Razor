@@ -88,25 +88,18 @@ def calculate_rbi_pre_debit_schedule(
     if not is_recurring_mandate_case(state):
         return None
 
-    now = datetime.now()
     # At least 24 hours required prior to debit retry
-    raw_pre_debit = retry_target - timedelta(hours=24)
-    if raw_pre_debit <= now:
-        # If retry is less than 24h away, pre-debit notification must be sent immediately (in window)
-        pre_debit_time = adjust_for_trai_window(now)
-    else:
-        pre_debit_time = adjust_for_trai_window(raw_pre_debit)
-
-    return pre_debit_time
+    target = max(datetime.now(), retry_target - timedelta(hours=24))
+    return adjust_for_trai_window(target)
 
 
 def format_rbi_pre_debit_intimation(
     state: RecoveryState,
     debit_date: datetime,
     payment_link: Optional[str] = None,
-) -> Tuple[str, Dict[str, Any]]:
+) -> str:
     """
-    Generates an RBI-compliant pre-debit intimation message and structured metadata.
+    Generates an RBI-compliant pre-debit intimation message.
     """
     name = state.customer.get("name", "Customer")
     amount_str = f"₹{state.amount_inr:,.0f}"
@@ -116,22 +109,11 @@ def format_rbi_pre_debit_intimation(
 
     link_str = f"\n\nManage / Update AutoPay: {payment_link}" if payment_link else ""
 
-    message = (
+    return (
         f"RBI MANDATE PRE-DEBIT NOTICE: Dear {name}, as required under RBI Section 10(2) PSS Act, "
         f"your account will be auto-debited for {amount_str} on {date_str} for recurring plan ({sub_id}). "
         f"Ensure sufficient balance.{link_str} (Ref: #RNV-{ref_code})"
     )
-
-    metadata = {
-        "pss_act_section": "10(2)",
-        "regulation": "RBI/2020-21/74 DPSS.CO.PD.No.750/02.14.003/2020-21",
-        "pre_debit_required": True,
-        "scheduled_debit_at": debit_date.isoformat(),
-        "subscription_id": sub_id,
-        "compliance_verified": True,
-    }
-
-    return message, metadata
 
 
 # =====================================================================
@@ -154,26 +136,22 @@ def has_active_whatsapp_session(state: RecoveryState, max_window_hours: int = 24
     if not state.audit_log:
         return False
 
-    now = datetime.now()
-    threshold = now - timedelta(hours=max_window_hours)
+    threshold = datetime.now() - timedelta(hours=max_window_hours)
 
-    for entry in reversed(state.audit_log):
-        if (
-            entry.get("channel") == "whatsapp"
-            and entry.get("direction") == "inbound"
-        ):
-            created_at_raw = entry.get("created_at")
-            if created_at_raw:
-                try:
-                    if isinstance(created_at_raw, str):
-                        created_dt = datetime.fromisoformat(created_at_raw)
-                    else:
-                        created_dt = created_at_raw
-                    if created_dt >= threshold:
-                        return True
-                except Exception:
-                    pass
-    return False
+    def is_recent_inbound(entry: dict) -> bool:
+        if entry.get("channel") != "whatsapp" or entry.get("direction") != "inbound":
+            return False
+        raw = entry.get("created_at")
+        if not raw:
+            return False
+        try:
+            dt = datetime.fromisoformat(raw) if isinstance(raw, str) else raw
+            return dt >= threshold
+        except Exception:
+            return False
+
+    return any(is_recent_inbound(entry) for entry in reversed(state.audit_log))
+
 
 
 def build_whatsapp_payload(
@@ -318,20 +296,16 @@ def get_bell_curve_discount(state: RecoveryState) -> float:
 
     min_d = float(settings.min_discount)
     max_d = float(settings.max_discount)
-    roll = random.random()
+    bucket = random.choices(["min", "low", "mid", "high"], weights=[65, 22, 10, 3])[0]
 
-    if roll < 0.65:
+    if bucket == "min":
         discount = min_d
-    elif roll < 0.87:
-        mid_low = min_d + (max_d - min_d) * 0.25
-        discount = round(random.uniform(min_d, mid_low), 0)
-    elif roll < 0.97:
-        mid_low = min_d + (max_d - min_d) * 0.25
-        mid_high = min_d + (max_d - min_d) * 0.60
-        discount = round(random.uniform(mid_low, mid_high), 0)
+    elif bucket == "low":
+        discount = round(random.uniform(min_d, min_d + (max_d - min_d) * 0.25), 0)
+    elif bucket == "mid":
+        discount = round(random.uniform(min_d + (max_d - min_d) * 0.25, min_d + (max_d - min_d) * 0.60), 0)
     else:
-        mid_high = min_d + (max_d - min_d) * 0.60
-        discount = round(random.uniform(mid_high, max_d), 0)
+        discount = round(random.uniform(min_d + (max_d - min_d) * 0.60, max_d), 0)
 
     discount = max(min_d, min(discount, max_d))
     if state.case_metadata is None:

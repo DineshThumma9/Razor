@@ -11,6 +11,7 @@ async def process_downtime_event(payload: dict) -> dict:
     event = payload.get("event", "")
     redis = get_redis_client()
     
+    
     if event == "payment.downtime.started":
         try:
             webhook = RazorpayWebhook.model_validate(payload)
@@ -60,29 +61,3 @@ async def process_downtime_event(payload: dict) -> dict:
         
     return {"status": "ignored"}
 
-async def detect_downtime(downtime):
-    """
-    Updates Redis with the latest downtime info.
-    We store the down methods in a set, and specific instruments as keys.
-    """
-    redis = get_redis_client()
-    method_key = "downtimes:method"
-    
-    instrument_dict = downtime.instrument.model_dump(exclude_none=True) if downtime.instrument else {}
-    
-    if downtime.status == "resolved":
-        for key, value in instrument_dict.items():
-            instrument_key = f"downtimes:{downtime.method}:{value}"
-            await redis.delete(instrument_key)
-            await redis.delete(f"{instrument_key.upper()}")
-        remaining = await redis.keys(f"downtimes:{downtime.method}:*")
-        if not remaining:
-            await redis.srem(method_key, downtime.method)
-        logger.info(f"[DOWNTIME] Resolved for {downtime.method} - {instrument_dict}")
-    else:
-        await redis.sadd(method_key, downtime.method)
-        for key, value in instrument_dict.items():
-            instrument_key = f"downtimes:{downtime.method}:{value}"
-            await redis.set(instrument_key, "down")
-            await redis.set(f"{instrument_key.upper()}", "down")
-        logger.info(f"[DOWNTIME] Active for {downtime.method} - {instrument_dict}")

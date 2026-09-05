@@ -1,18 +1,25 @@
-import axios from 'axios'
 import { z } from 'zod'
 import { CaseSchema, StatsSchema, type Case, type Stats } from './types'
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 
-const http = axios.create({
-  
-  baseURL: API_BASE_URL,
-  timeout: 15000,
-})
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      ...options?.headers,
+    },
+    ...options,
+  })
+  if (!res.ok) {
+    throw new Error(`API error ${res.status}: ${res.statusText}`)
+  }
+  return res.json()
+}
 
 // Generic helper: parse + validate response with a Zod schema
-async function get<T>(url: string, schema: z.ZodType<T>): Promise<T> {
-  const { data } = await http.get(url)
+async function get<T>(path: string, schema: z.ZodType<T>): Promise<T> {
+  const data = await request<unknown>(path)
   return schema.parse(data)
 }
 
@@ -29,23 +36,27 @@ export async function fetchStats(): Promise<Stats> {
 }
 
 export async function approveEscalation(caseId: string): Promise<void> {
-  await http.post(`/cases/${caseId}/approve`)
+  await request(`/cases/${caseId}/approve`, { method: 'POST' })
 }
 
 export async function closeCase(caseId: string): Promise<void> {
-  await http.post(`/cases/${caseId}/close`)
+  await request(`/cases/${caseId}/close`, { method: 'POST' })
 }
 
 export async function simulateFire(payload: any): Promise<{ id: string }> {
-  const { data } = await http.post('/fake-event', payload)
-  return data
+  return request<{ id: string }>('/fake-event', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
 }
 
 export async function simulateAction(payload: any): Promise<any> {
-  const { data } = await http.post('/fake-action', payload)
-  return data
+  return request('/fake-action', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
 }
 
 export async function clearAllCases(): Promise<void> {
-  await http.delete('/cases/clear')
+  await request('/cases/clear', { method: 'DELETE' })
 }

@@ -43,7 +43,6 @@ from agent.utils import (
     ensure_payment_link,
     sanity_date,
     mark_case_escalated,
-    _generate_link_for_state,
 )
 
 logger = get_logger(__name__)
@@ -153,30 +152,10 @@ async def create_payment_link(discount_pct: float = 0.0, config: RunnableConfig 
         state = await load_state(case_id, db)
         if not state:
             return "Error: Case state not found."
-        customer_name = state.customer.get("name", "Customer")
-        customer_email = state.customer.get("email", "")
-        customer_contact = state.customer.get("contact", "")
-        amount_inr = state.amount_inr
-
-        # Bounded concession enforcement (clamped to bell-curve ceiling)
-        if state.case_type == "abandoned_checkout":
-            eligible = get_bell_curve_discount(state)
-            discount_pct = eligible if discount_pct <= 0 else min(discount_pct, eligible)
-            amount_inr = round(state.amount_inr * (1.0 - (discount_pct / 100.0)), 2)
-        else:
-            if discount_pct > 0:
-                logger.warning(f"  [DISCOUNT POLICY] Concession rejected for non-abandoned case: {state.case_type}")
-            discount_pct = 0.0
-            amount_inr = state.amount_inr
-
-        short_url, link_type, is_subscription = await _generate_link_for_state(
-            state, customer_name, customer_email, customer_contact, amount_inr
-        )
-
-        logger.info(f"\n  [TOOL] create_payment_link")
-        logger.info(f"    → Type     : {link_type} ({'Mandate Re-Auth (sub_card_change)' if is_subscription else 'One-Time Link'})")
-        logger.info(f"    → Amount   : ₹{amount_inr} (Discount: {discount_pct}%)")
-        logger.info(f"    → Link     : {short_url}")
+        short_url, link_type, is_subscription = await ensure_payment_link(state, db, discount_pct)
+        meta = state.case_metadata or {}
+        amount_inr = meta.get("effective_amount_inr", state.amount_inr)
+        applied_disc = meta.get("discount_pct", 0.0)
 
         next_contact = get_next_follow_up_time(state)
         if next_contact:
@@ -185,21 +164,7 @@ async def create_payment_link(discount_pct: float = 0.0, config: RunnableConfig 
             except Exception as e:
                 logger.info(f"    [WARN] Failed to schedule follow-up task (non-fatal): {e}")
 
-        # Store payment link and effective amount in case_metadata for message hydration
-        if state.case_metadata is None:
-            state.case_metadata = {}
-        state.case_metadata["payment_link"] = short_url
-        state.case_metadata["link_type"] = link_type
-        if is_subscription:
-            state.case_metadata["mandate_update"] = True
-            state.case_metadata["sub_card_change"] = True
-        state.case_metadata["discount_pct"] = discount_pct
-        state.case_metadata["effective_amount_inr"] = amount_inr
-        if discount_pct > 0:
-            state.case_metadata["eligible_discount"] = discount_pct
-        await save_state(state, db)
-
-        disc_str = f" ({discount_pct:.0f}% discount applied, payable ₹{amount_inr:,.0f})" if discount_pct > 0 else ""
+        disc_str = f" ({applied_disc:.0f}% discount applied, payable ₹{amount_inr:,.0f})" if applied_disc > 0 else ""
         if is_subscription:
             link_msg = (
                 f"Mandate Re-Authorization Link generated for recurring subscription: {short_url} "

@@ -10,13 +10,14 @@ from config.constants import hard_declines
 from service.compliance import get_bell_curve_discount
 
 
-def get_escalation_tone(rs: RecoveryState) -> tuple[str, str, str]:
+def get_escalation_tone(rs: RecoveryState, attempt: int | None = None) -> tuple[str, str, str]:
     """
     Returns (whatsapp_msg, email_urgency, voice_msg) dynamically based on attempt_count,
     language (English/Hinglish), and case_type (B2C order vs B2B commercial invoice).
     Includes short reference ticket code (#RNV-XXXX) for multi-case disambiguation.
     """
-    attempt = rs.attempt_count or 1
+    if attempt is None:
+        attempt = rs.attempt_count or 1
     name = rs.customer.get("name", "Customer")
     amount_str = f"₹{rs.amount_inr:,.0f}"
     lang = getattr(rs, "language", "english").lower()

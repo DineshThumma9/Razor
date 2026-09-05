@@ -169,23 +169,6 @@ async def decide_reply(state: AgentState):
     rs = state["recovery_state"]
     logger.info(f"[ROUTER] LLM routing conversational reply for case: {rs.case_id}")
     
-    if (rs.attempt_count or 0) >= 3 and state.get("event_source") != "inbound.human_approval":
-        rs.attempt_count = min(3, rs.attempt_count or 0)
-        logger.info(f"[ROUTER] Deterministic stop in decide_reply: attempt count 3 >= 3")
-        context_str = f"Context: Name={rs.customer.get('name', 'Unknown')}, Amount=₹{rs.amount_inr:,.0f}, Case={rs.case_type}, Last Action={rs.last_action_taken}"
-        reason = f"Max recovery outreach attempts (3) exhausted without resolution. {context_str}"
-        ai_msg = AIMessage(
-            content="Max attempts reached.", 
-            tool_calls=[{
-                "name": "escalate_to_human", 
-                "args": {"reason": reason},
-                "id": f"call_{uuid.uuid4().hex[:8]}",
-                "type": "tool_call"
-            }]
-        )
-        await mark_case_escalated(rs, reason)
-        return {"messages": [ai_msg]}
-    
     system_prompt = build_system_prompt(rs)
     
     first_human_idx = next((i for i, m in enumerate(state["messages"]) if getattr(m, "type", "") == "human"), None)
@@ -224,7 +207,8 @@ async def decide_reply(state: AgentState):
                 else:
                     # Graceful deterministic fallback so Taskiq background workers never crash on DNS drops
                     logger.info(f"[LLM RESILIENCE] Network/DNS connection failed. Falling back to deterministic escalation tone.")
-                    wa_msg, _, _ = get_escalation_tone(rs)
+                    current_attempt = min(3, (rs.attempt_count or 0) + 1)
+                    wa_msg, _, _ = get_escalation_tone(rs, attempt=current_attempt)
                     fallback_ai = AIMessage(
                         content="Deterministic recovery fallback applied due to upstream LLM connectivity timeout.",
                         tool_calls=[{
@@ -239,7 +223,8 @@ async def decide_reply(state: AgentState):
                 raise e
                 
     # Final safety fallback
-    wa_msg, _, _ = get_escalation_tone(rs)
+    current_attempt = min(3, (rs.attempt_count or 0) + 1)
+    wa_msg, _, _ = get_escalation_tone(rs, attempt=current_attempt)
     fallback_ai = AIMessage(
         content="Deterministic recovery fallback applied after retries exhausted.",
         tool_calls=[{

@@ -70,46 +70,35 @@ def _ensure_redis_listener():
         except RuntimeError:
             pass
 
+async def _dispatch_payload(payload: str):
+    published = False
+    try:
+        r = get_redis_client()
+        await r.publish("renvue:sse_channel", payload)
+        published = True
+    except Exception:
+        pass
+
+    # Deliver directly to local process subscribers only if Redis was unavailable
+    if not published:
+        for q in list(_subscribers):
+            try:
+                q.put_nowait(payload)
+            except Exception:
+                pass
+
 async def broadcast_case_update(state: RecoveryState):
     try:
         case_data = state.model_dump(mode="json")
         payload = json.dumps({"type": "CASE_UPDATED", "data": case_data})
-        published = False
-        try:
-            r = get_redis_client()
-            await r.publish("renvue:sse_channel", payload)
-            published = True
-        except Exception:
-            pass
-
-        # Deliver directly to local process subscribers only if Redis was unavailable
-        if not published:
-            for q in list(_subscribers):
-                try:
-                    q.put_nowait(payload)
-                except Exception:
-                    pass
+        await _dispatch_payload(payload)
     except Exception as e:
         logger.warning(f"[SSE] Error formatting broadcast: {e}")
 
 async def broadcast_event(event_type: str, data: dict):
     try:
         payload = json.dumps({"type": event_type, "data": data})
-        published = False
-        try:
-            r = get_redis_client()
-            await r.publish("renvue:sse_channel", payload)
-            published = True
-        except Exception:
-            pass
-
-        # Deliver directly to local process subscribers only if Redis was unavailable
-        if not published:
-            for q in list(_subscribers):
-                try:
-                    q.put_nowait(payload)
-                except Exception:
-                    pass
+        await _dispatch_payload(payload)
     except Exception as e:
         logger.warning(f"[SSE] Error broadcasting event {event_type}: {e}")
 

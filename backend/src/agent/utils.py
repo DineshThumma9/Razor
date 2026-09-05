@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import Optional
 
 from langchain_core.messages import SystemMessage
@@ -25,7 +25,6 @@ from service.compliance import (
     adjust_for_trai_window,
     build_whatsapp_payload,
     calculate_rbi_pre_debit_schedule,
-    calculate_salary_milestones,
     format_rbi_pre_debit_intimation,
     get_bell_curve_discount,
     is_recurring_mandate_case,
@@ -196,7 +195,7 @@ async def ensure_payment_link(state: RecoveryState, db: AsyncSession, discount_p
     link_type = meta.get("link_type", "one_time_payment")
     is_sub = bool(meta.get("mandate_update"))
 
-    if payment_link:
+    if payment_link and (discount_pct <= 0.0 or meta.get("discount_pct") == discount_pct):
         return payment_link, link_type, is_sub
 
     customer_name = state.customer.get("name", "Customer")
@@ -435,7 +434,8 @@ async def execute_deterministic_recovery(rs: RecoveryState, event_source: str) -
         payment_link, link_type, is_sub = await ensure_payment_link(rs, db)
 
         # Stage 3: Escalation Tone Matrix & Template Formatting
-        wa_text, email_urgency, voice_text = get_escalation_tone(rs)
+        current_attempt = min(3, (rs.attempt_count or 0) + 1)
+        wa_text, email_urgency, voice_text = get_escalation_tone(rs, attempt=current_attempt)
         if payment_link and "{payment_link}" in wa_text:
             wa_text = wa_text.replace("{payment_link}", payment_link)
         if payment_link and "{payment_link}" in voice_text:
@@ -518,25 +518,6 @@ async def execute_deterministic_recovery(rs: RecoveryState, event_source: str) -
                     channel="system",
                     direction="internal",
                 )
-
-        # 5.2 Salary-Cycle Smart Hold (only on initial triage)
-        if (rs.attempt_count or 0) == 0 and rs.failure_reason and any(kw in rs.failure_reason.lower() for kw in ["insufficient funds", "balance", "limit", "low funds"]):
-            try:
-                milestones = calculate_salary_milestones()
-                if milestones:
-                    salary_str = ", ".join(d.strftime('%d %b') for d in milestones)
-                    first_dt = datetime.combine(milestones[0], datetime.min.time()) + timedelta(hours=10)
-                    await _log_audit(
-                        rs,
-                        "get_next_salary_date",
-                        None,
-                        db,
-                        message=f"Upcoming salary dates: {salary_str}. Recommended follow-up window for {first_dt.strftime('%b %d, %Y')}.",
-                        channel="system",
-                        direction="system",
-                    )
-            except Exception as e:
-                logger.warning(f"[ROUTER] Salary date calculation error: {e}")
 
         # Stage 6: Update attempt count & last_action_taken
         rs.attempt_count = min(3, (rs.attempt_count or 0) + 1)

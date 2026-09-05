@@ -158,40 +158,34 @@ async def create_rzp_mandate_update_link(
     if settings.demo_mode or "@example.com" in customer_email or "test" in customer_email:
         return f"https://rzp.io/l/mandate-reauth-{ref}"
 
-    def _create_mandate_link():
-        # First attempt: if valid subscription_id exists, try to fetch subscription link
+    try:
         if subscription_id and subscription_id.startswith("sub_"):
             try:
-                sub = razorpay_client.subscription.fetch(subscription_id)
+                sub = await asyncio.to_thread(razorpay_client.subscription.fetch, subscription_id)
                 if sub.get("short_url"):
                     return sub["short_url"]
             except Exception as e:
                 logger.info(f"Razorpay subscription fetch fallback: {e}")
 
-        # Razorpay Payment Link configured for Mandate Re-authorization / Token Update
-        return razorpay_client.payment_link.create(
-            {
-                "amount": round(amount_inr * 100),
-                "currency": "INR",
-                "description": f"Mandate Re-Authorization & Card Update ({subscription_id or 'AutoPay'})",
-                "customer": {
-                    "name": customer_name,
-                    "email": customer_email,
-                    "contact": customer_contact,
-                },
-                "notes": {
-                    "purpose": "mandate_reauthorization",
-                    "sub_card_change": "true",
-                    "subscription_id": subscription_id or "",
-                    "auth_type": "penny_drop_reauth",
-                },
-                "notify": {"sms": False, "email": False},
-            }
-        ).get("short_url", f"https://rzp.io/l/mandate-{ref}")
-
-    try:
-        response_url = await asyncio.wait_for(asyncio.to_thread(_create_mandate_link), timeout=3.5)
-        return response_url
+        payload = {
+            "amount": round(amount_inr * 100),
+            "currency": "INR",
+            "description": f"Mandate Re-Authorization & Card Update ({subscription_id or 'AutoPay'})",
+            "customer": {
+                "name": customer_name,
+                "email": customer_email,
+                "contact": customer_contact,
+            },
+            "notes": {
+                "purpose": "mandate_reauthorization",
+                "sub_card_change": "true",
+                "subscription_id": subscription_id or "",
+                "auth_type": "penny_drop_reauth",
+            },
+            "notify": {"sms": False, "email": False},
+        }
+        res = await asyncio.to_thread(razorpay_client.payment_link.create, payload)
+        return res.get("short_url", f"https://rzp.io/l/mandate-{ref}")
     except Exception as e:
         logger.info(f"Razorpay Mandate API note (using fallback mandate link): {e}")
         return f"https://rzp.io/l/mandate-reauth-{ref}"

@@ -1,3 +1,11 @@
+import sys
+from pathlib import Path
+
+# Ensure src directory is in sys.path regardless of execution working directory
+_src_dir = str(Path(__file__).resolve().parent)
+if _src_dir not in sys.path:
+    sys.path.insert(0, _src_dir)
+
 from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI

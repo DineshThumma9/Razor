@@ -14,8 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Field, FieldContent, FieldLabel, FieldTitle } from "@/components/ui/field"
-import { fetchCase, API_BASE_URL } from "./api"
+import { fetchCase, simulateFire, simulateAction, clearAllCases } from "./api"
 import { useCaseStore } from "./store/useCaseStore"
 import type { Case } from "./types"
 import { 
@@ -213,83 +212,74 @@ export default function App() {
           }
   
           try {
-              const res = await fetch(`${API_BASE_URL}/fake-event`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify(payload)
-              })
-              const data = await res.json()
-              
-              if (data.id) {
-                  setActiveCaseId(data.id)
-                  setChatHistory([
-                      {
-                          id: `init-${data.id}`,
-                          sender: 'system',
-                          text: `Payment failure detected: ₹${amount.toLocaleString()} (${declineReason})`,
-                          timestamp: new Date(),
-                          isStatus: true
-                      }
-                  ])
-                  setStep(2)
-                  setIsPolling(true)
-              }
-          } catch (error) {
-              console.error("Simulation trigger failed", error)
-          } finally {
-              setIsSimulating(false)
-          }
-      }
-  
-      const pollCaseStatus = async () => {
-          if (!activeCaseId) return
-          try {
-              const caseData = await fetchCase(activeCaseId)
-              if (!caseData) return
-              setActiveCase(caseData)
-              setChatHistory(buildChatFromAuditLog(caseData))
-  
-              if (caseData.recovery_status === "recovered" || caseData.recovery_status === "closed" || caseData.recovery_status === "escalated") {
-                  setIsPolling(false)
-              }
-          } catch (error) {
-              console.error("Poll failed", error)
-          }
-      }
-  
-      const handleAction = async (actionType: 'pay' | 'ignore' | 'reply', msgContent?: string) => {
-          if (!activeCaseId) return
-          setIsSimulating(true)
-  
-          if (actionType === 'reply' && msgContent) {
-              setChatHistory(prev => [...prev, {
-                  id: `pending-${Date.now()}`,
-                  sender: 'user',
-                  text: msgContent,
-                  timestamp: new Date(),
-                  channel: 'whatsapp'
-              }])
-              setReplyText("")
-          }
-  
-          try {
-              await fetch(`${API_BASE_URL}/fake-action`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                      case_id: activeCaseId,
-                      actions: actionType,
-                      messages: msgContent || "",
-                  })
-              })
-              await pollCaseStatus()
-              refreshData()
-          } catch (error) {
-              console.error("Action dispatch failed", error)
-          } finally {
-              setIsSimulating(false)
-          }
-      }
+            const data = await simulateFire(payload)
+            
+            if (data.id) {
+                setActiveCaseId(data.id)
+                setChatHistory([
+                    {
+                        id: `init-${data.id}`,
+                        sender: 'system',
+                        text: `Payment failure detected: ₹${amount.toLocaleString()} (${declineReason})`,
+                        timestamp: new Date(),
+                        isStatus: true
+                    }
+                ])
+                setStep(2)
+                setIsPolling(true)
+            }
+        } catch (error) {
+            console.error("Simulation trigger failed", error)
+        } finally {
+            setIsSimulating(false)
+        }
+    }
+
+    const pollCaseStatus = async () => {
+        if (!activeCaseId) return
+        try {
+            const caseData = await fetchCase(activeCaseId)
+            if (!caseData) return
+            setActiveCase(caseData)
+            setChatHistory(buildChatFromAuditLog(caseData))
+
+            if (caseData.recovery_status === "recovered" || caseData.recovery_status === "closed" || caseData.recovery_status === "escalated") {
+                setIsPolling(false)
+            }
+        } catch (error) {
+            console.error("Poll failed", error)
+        }
+    }
+
+    const handleAction = async (actionType: 'pay' | 'ignore' | 'reply', msgContent?: string) => {
+        if (!activeCaseId) return
+        setIsSimulating(true)
+
+        if (actionType === 'reply' && msgContent) {
+            setChatHistory(prev => [...prev, {
+                id: `pending-${Date.now()}`,
+                sender: 'user',
+                text: msgContent,
+                timestamp: new Date(),
+                channel: 'whatsapp'
+            }])
+            setReplyText("")
+        }
+
+        try {
+            await simulateAction({
+                case_id: activeCaseId,
+                actions: actionType,
+                messages: msgContent || "",
+            })
+            await pollCaseStatus()
+            refreshData()
+        } catch (error) {
+            console.error("Action dispatch failed", error)
+        } finally {
+            setIsSimulating(false)
+        }
+    }
   
       useEffect(() => {
           if (!isPolling || !activeCaseId) return
@@ -370,7 +360,6 @@ export default function App() {
                 variant="outline" 
                 onClick={async () => {
                    if(confirm('Are you sure you want to clear all cases?')) {
-                       const { clearAllCases } = await import('./api');
                        await clearAllCases();
                        refreshData();
                    }
@@ -411,35 +400,35 @@ export default function App() {
                     </div>
 
                     <RadioGroup value={eventType} onValueChange={handleScenarioChange} className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <FieldLabel htmlFor="sc-soft" className="border border-zinc-800 bg-zinc-900/40 hover:bg-zinc-900 hover:border-zinc-700 rounded-xl cursor-pointer transition-all has-[[data-checked]]:border-indigo-500/60 has-[[data-checked]]:bg-indigo-500/10">
-                        <Field orientation="horizontal" className="p-3 w-full justify-between items-center flex">
-                          <FieldContent>
-                            <FieldTitle className="text-xs font-semibold text-zinc-100">Soft Decline</FieldTitle>
+                      <label htmlFor="sc-soft" className="border border-zinc-800 bg-zinc-900/40 hover:bg-zinc-900 hover:border-zinc-700 rounded-xl cursor-pointer transition-all has-[[data-checked]]:border-indigo-500/60 has-[[data-checked]]:bg-indigo-500/10 block">
+                        <div className="p-3 w-full justify-between items-center flex">
+                          <div>
+                            <div className="text-xs font-semibold text-zinc-100">Soft Decline</div>
                             <p className="text-[11px] text-zinc-400 mt-0.5">Insufficient funds retry</p>
-                          </FieldContent>
+                          </div>
                           <RadioGroupItem value="order.failed" id="sc-soft" className="border-zinc-600 text-indigo-500 h-3.5 w-3.5" />
-                        </Field>
-                      </FieldLabel>
+                        </div>
+                      </label>
 
-                      <FieldLabel htmlFor="sc-sub" className="border border-zinc-800 bg-zinc-900/40 hover:bg-zinc-900 hover:border-zinc-700 rounded-xl cursor-pointer transition-all has-[[data-checked]]:border-indigo-500/60 has-[[data-checked]]:bg-indigo-500/10">
-                        <Field orientation="horizontal" className="p-3 w-full justify-between items-center flex">
-                          <FieldContent>
-                            <FieldTitle className="text-xs font-semibold text-zinc-100">Subscription Failure</FieldTitle>
+                      <label htmlFor="sc-sub" className="border border-zinc-800 bg-zinc-900/40 hover:bg-zinc-900 hover:border-zinc-700 rounded-xl cursor-pointer transition-all has-[[data-checked]]:border-indigo-500/60 has-[[data-checked]]:bg-indigo-500/10 block">
+                        <div className="p-3 w-full justify-between items-center flex">
+                          <div>
+                            <div className="text-xs font-semibold text-zinc-100">Subscription Failure</div>
                             <p className="text-[11px] text-zinc-400 mt-0.5">Mandate auto-debit failure</p>
-                          </FieldContent>
+                          </div>
                           <RadioGroupItem value="subscription_failed" id="sc-sub" className="border-zinc-600 text-indigo-500 h-3.5 w-3.5" />
-                        </Field>
-                      </FieldLabel>
+                        </div>
+                      </label>
 
-                      <FieldLabel htmlFor="sc-invoice" className="border border-zinc-800 bg-zinc-900/40 hover:bg-zinc-900 hover:border-zinc-700 rounded-xl cursor-pointer transition-all has-[[data-checked]]:border-indigo-500/60 has-[[data-checked]]:bg-indigo-500/10">
-                        <Field orientation="horizontal" className="p-3 w-full justify-between items-center flex">
-                          <FieldContent>
-                            <FieldTitle className="text-xs font-semibold text-zinc-100">Overdue Invoice</FieldTitle>
+                      <label htmlFor="sc-invoice" className="border border-zinc-800 bg-zinc-900/40 hover:bg-zinc-900 hover:border-zinc-700 rounded-xl cursor-pointer transition-all has-[[data-checked]]:border-indigo-500/60 has-[[data-checked]]:bg-indigo-500/10 block">
+                        <div className="p-3 w-full justify-between items-center flex">
+                          <div>
+                            <div className="text-xs font-semibold text-zinc-100">Overdue Invoice</div>
                             <p className="text-[11px] text-zinc-400 mt-0.5">Payment link outreach</p>
-                          </FieldContent>
+                          </div>
                           <RadioGroupItem value="invoice_failed" id="sc-invoice" className="border-zinc-600 text-indigo-500 h-3.5 w-3.5" />
-                        </Field>
-                      </FieldLabel>
+                        </div>
+                      </label>
                     </RadioGroup>
 
                     {/* Horizontal Inputs Grid with Labels */}

@@ -30,7 +30,14 @@ async def kill_all_tasks(case_id: str, db: AsyncSession):
 
 async def handle_payment_event(payload: dict, db: AsyncSession) -> dict:
     event = payload.get("event", "")
-    SUCCESS_EVENTS = ["payment.captured", "invoice.paid", "subscription.charged", "order.paid"]
+    SUCCESS_EVENTS = [
+        "payment.captured", 
+        "invoice.paid", 
+        "subscription.charged", 
+        "order.paid",
+        "payment_link.paid",
+        "payment.dispute.won",
+    ]
     FAIL_EVENTS = ["payment.failed", "invoice.expired", "subscription.halted", "payment_link.expired"]
 
     # 1. Environment / Downtime Awareness
@@ -67,6 +74,7 @@ async def handle_payment_event(payload: dict, db: AsyncSession) -> dict:
                 o_entity = payload.get("payload", {}).get("order", {}).get("entity", {})
                 i_entity = payload.get("payload", {}).get("invoice", {}).get("entity", {})
                 s_entity = payload.get("payload", {}).get("subscription", {}).get("entity", {})
+                pl_entity = payload.get("payload", {}).get("payment_link", {}).get("entity", {})
                 raw_amount = (
                     p_entity.get("amount")
                     or o_entity.get("amount_paid")
@@ -74,6 +82,8 @@ async def handle_payment_event(payload: dict, db: AsyncSession) -> dict:
                     or i_entity.get("amount_paid")
                     or i_entity.get("amount")
                     or s_entity.get("amount")
+                    or pl_entity.get("amount_paid")
+                    or pl_entity.get("amount")
                 )
                 if raw_amount:
                     matched_case.recovered_amount = float(raw_amount) / 100.0
@@ -106,14 +116,23 @@ async def handle_payment_event(payload: dict, db: AsyncSession) -> dict:
         return {"status": "ok, but no active case matched this event ID"}
     
     # 3. Partial Payments (Delaying notifications)
-    elif event == "invoice.partially_paid":
+    elif event in ["invoice.partially_paid", "payment_link.partially_paid"]:
         extracted_case_id, _ = extract_ids_from_payload(payload)
-        amount_paid = payload.get("payload", {}).get("payment", {}).get("entity", {}).get("amount", 0) / 100.0
+        p_ent = payload.get("payload", {}).get("payment", {}).get("entity", {})
+        pl_ent = payload.get("payload", {}).get("payment_link", {}).get("entity", {})
+        inv_ent = payload.get("payload", {}).get("invoice", {}).get("entity", {})
+        raw_paid = (
+            p_ent.get("amount")
+            or pl_ent.get("amount_paid")
+            or inv_ent.get("amount_paid")
+            or 0
+        )
+        amount_paid = float(raw_paid) / 100.0
         if extracted_case_id:
             state = await load_state(extracted_case_id, db)
             if state:
                 state.recovered_amount += amount_paid
-                state.amount_inr -= amount_paid
+                state.amount_inr = max(0.0, state.amount_inr - amount_paid)
                 target_date = datetime.now() + timedelta(days=3)
                 
                 await _schedule_task(state, target_date, db)
@@ -123,17 +142,62 @@ async def handle_payment_event(payload: dict, db: AsyncSession) -> dict:
                     "amount": str(amount_paid),
                     "recovery_status": state.recovery_status,
                     "customer": state.customer,
-                    "next_contact": target_date.isoformat()
+                    "next_contact": target_date.isoformat(),
+                    "message": f"Partial payment of ₹{amount_paid:,.0f} received. Dunning paused for 3 days.",
+                    "channel": "system",
+                    "direction": "system",
+                    "created_at": datetime.now().isoformat()
                 })
                 await save_state(state, db)
         return {"status": "partial payment logged"}
+
+    # 4. Payment Link Cancelled (Manual merchant cancellation)
+    elif event == "payment_link.cancelled":
+        extracted_case_id, extracted_source_id = extract_ids_from_payload(payload)
+        conditions = []
+        if extracted_case_id:
+            conditions.append(RecoveryState.case_id == extracted_case_id)
+        if extracted_source_id and extracted_source_id != "unknown":
+            conditions.append(RecoveryState.source_id == extracted_source_id)
+        matched_case = None
+        if conditions:
+            from sqlmodel import or_
+            query = select(RecoveryState).where(
+                RecoveryState.recovery_status.notin_(["recovered", "closed"]),
+                or_(*conditions)
+            )
+            result = await db.execute(query)
+            matched_case = result.scalars().first()
+            
+        if matched_case:
+            matched_case.recovery_status = "closed"
+            matched_case.next_retry_at = None
+            matched_case.audit_log.append({
+                "event_triggered": "payment_link_cancelled",
+                "amount": str(matched_case.amount_inr),
+                "recovery_status": "closed",
+                "customer": matched_case.customer,
+                "next_contact": None,
+                "message": "Payment link cancelled by merchant. Recovery closed.",
+                "channel": "system",
+                "direction": "system",
+                "created_at": datetime.now().isoformat()
+            })
+            await save_state(matched_case, db)
+            await kill_all_tasks(matched_case.case_id, db)
+            return {"status": f"Case {matched_case.case_id} closed (payment link cancelled)"}
+        return {"status": "ok, but no active case matched this payment link"}
 
     # 4. Triggers (Lost Revenue)
     elif event in FAIL_EVENTS or event == "subscription.cancelled":
         new_state = await parse_webhook(payload, db)
         if new_state:
             await save_state(new_state, db)
-            await invoke_agent_task.kiq(new_state.case_id)
+            try:
+                await asyncio.wait_for(invoke_agent_task.kiq(new_state.case_id), timeout=3.0)
+            except Exception as e:
+                logger.warning(f"[TASKIQ] Failed to enqueue to Taskiq ({e}). Triggering in-process background task.")
+                asyncio.create_task(invoke_agent_task(new_state.case_id))
             return {"status": "lost revenue case created and queued!"}
             
     # 5. Order Creation (15-Minute Abandoned Cart Timer)

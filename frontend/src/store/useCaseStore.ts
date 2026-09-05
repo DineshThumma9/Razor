@@ -2,9 +2,19 @@ import { create } from "zustand"
 import { fetchCases, fetchStats, API_BASE_URL } from "../api"
 import type { Case, Stats } from "../types"
 
+export const DEFAULT_STATS: Stats = {
+  total_cases: 0,
+  total_at_risk_inr: 0,
+  recovered_count: 0,
+  recovered_amount_inr: 0,
+  recovery_rate_pct: 0,
+  escalated_count: 0,
+  still_active: 0,
+}
+
 interface CaseState {
   cases: Case[]
-  stats: Stats | null
+  stats: Stats
   loadingCases: boolean
   loadingStats: boolean
   selectedCaseId: string | null
@@ -13,7 +23,7 @@ interface CaseState {
 
   // Actions
   setCases: (cases: Case[]) => void
-  setStats: (stats: Stats | null) => void
+  setStats: (stats: Stats) => void
   setSelectedCaseId: (id: string | null) => void
   setDrawerOpen: (open: boolean) => void
   updateOrAddCase: (updatedCase: Case) => void
@@ -23,9 +33,9 @@ interface CaseState {
 
 export const useCaseStore = create<CaseState>((set, get) => ({
   cases: [],
-  stats: null,
-  loadingCases: true,
-  loadingStats: true,
+  stats: DEFAULT_STATS,
+  loadingCases: false,
+  loadingStats: false,
   selectedCaseId: null,
   drawerOpen: false,
   sseConnected: false,
@@ -53,11 +63,20 @@ export const useCaseStore = create<CaseState>((set, get) => ({
 
   refreshData: async () => {
     try {
-      const [c, s] = await Promise.all([fetchCases(), fetchStats()])
-      set({ cases: c, stats: s, loadingCases: false, loadingStats: false })
+      const [casesRes, statsRes] = await Promise.allSettled([fetchCases(), fetchStats()])
+      const updates: Partial<CaseState> = { loadingCases: false, loadingStats: false }
+      if (casesRes.status === "fulfilled") {
+        updates.cases = casesRes.value
+      }
+      if (statsRes.status === "fulfilled") {
+        updates.stats = statsRes.value
+      } else if (!get().stats) {
+        updates.stats = DEFAULT_STATS
+      }
+      set(updates)
     } catch (err) {
       console.error("[Store] Failed to fetch data:", err)
-      set({ loadingCases: false, loadingStats: false })
+      set((state) => ({ loadingCases: false, loadingStats: false, stats: state.stats || DEFAULT_STATS }))
     }
   },
 

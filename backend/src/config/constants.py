@@ -27,35 +27,6 @@ hard_declines = {
         "R0": "Recurring charge stopped at customer request",
         "R1": "Recurring charge stopped at customer request"
     }
-    
-    
-soft_declines  =  {
-        "01": "Refer to issuer",
-        "02": "Refer to issuer (special condition)",
-        "05": "Do not honor",
-        "06": "Error",
-        "10": "Partial approval",
-        "19": "Re-enter transaction",
-        "21": "No action taken",
-        "28": "File temporarily not available for update or injury",
-        "51": "Insufficient funds",
-        "55": "Incorrect PIN",
-        "61": "Exceeds approval amount limit",
-        "65": "Exceeds withdrawal limit/ activity limit",
-        "70": "PIN data required",
-        "76": "Unsolicited reversal",
-        "78": "Blocked, first use",
-        "82": "Negative CAM, dCVV, iCVV, or CVV results",
-        "85": "No reason to decline",
-        "86": "Cannot verify PIN",
-        "91": "Issuer or switch unavailable",
-        "92": "Unable to route transaction",
-        "96": "System error",
-        "97": "Invalid CVV",
-        "1A": "Additional customer authentication required"
-    }
-
-
 
 
 email_messages = {
@@ -79,11 +50,17 @@ HANDLED_EVENTS = [
     "payment.failed", 
     "payment.captured",
     "payment.dispute.created",
+    "payment.dispute.won",
     "payment_link.expired",
+    "payment_link.paid",
+    "payment_link.partially_paid",
+    "payment_link.cancelled",
     "subscription.halted",
+    "subscription.charged",
     "subscription.cancelled",
     "invoice.expired",
-    "order.created"
-
-
+    "invoice.paid",
+    "invoice.partially_paid",
+    "order.created",
+    "order.paid",
 ]
