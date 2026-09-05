@@ -8,6 +8,8 @@ from pydantic import Field
 
 _ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 
+# from dotenv import load_dotenv
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=(_ENV_FILE, ".env"), extra="ignore")

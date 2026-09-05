@@ -86,6 +86,11 @@ Renvue utilizes a **Two-Tier Hybrid Architecture**:
 
 Renvue includes an end-to-end evaluation harness across **30 curated Indian payment scenarios** testing hard declines, salary milestone backoffs, RBI 2026 e-mandate rules, abandoned checkouts, B2B invoices, and compliance stopping rules.
 
+
+User load_dotenv  at top of config.config
+in case of demo to run run_batch.py else wont work prolly 
+
+
 To run the benchmark suite:
 ```bash
 cd backend
