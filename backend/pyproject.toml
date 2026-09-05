@@ -22,6 +22,7 @@ dependencies = [
     "elevenlabs>=2.65.0",
     "redis>=8.1.0",
     "python-multipart>=0.0.32",
+    "psycopg2-binary>=2.9.12",
     "psycopg[binary]>=3.3.4",
     "langgraph-checkpoint-postgres>=3.1.2",
     "taskiq>=0.12.6",
