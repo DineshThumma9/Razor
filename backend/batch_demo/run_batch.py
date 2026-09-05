@@ -100,14 +100,19 @@ def get_policy_rule_tag(scen: dict, final_state: RecoveryState) -> str:
     """Categorizes the exact policy guardrail that governed the case."""
     cat = scen.get("category", "")
     reason = (scen.get("failure_reason") or "").lower()
-    inbound = (scen.get("error_details", {}).get("inbound_reply") or "").upper()
+    inbound = (
+        scen.get("case_metadata", {}).get("inbound_reply")
+        or scen.get("error_details", {}).get("inbound_reply")
+        or scen.get("inbound_reply")
+        or ""
+    ).upper()
     
-    if "STOP" in inbound:
+    if "2038" in inbound or "unreasonable" in reason:
+        return "Date Sanity & Hostility Circuit-Breaker"
+    if inbound.strip() == "STOP":
         return "TRAI/RBI Consent Opt-Out Rule"
     if "dispute" in reason or final_state.recovery_status == "escalated" and "dispute" in (final_state.failure_reason or "").lower():
         return "Dispute Freeze Kill-Switch"
-    if "2038" in inbound or "unreasonable" in reason:
-        return "Date Sanity & Hostility Circuit-Breaker"
     if "> 15000" in reason or scen.get("amount_inr", 0) > 15000 and scen.get("case_type") == "failed_subscription":
         return "RBI 2026 E-Mandate AFA (OTP) Rule"
     if cat == "Hard Decline" and final_state.recovery_status != "recovered":
@@ -135,7 +140,26 @@ async def execute_scenario(scen: dict, index: int) -> dict:
     case_type = scen["case_type"]
     decline_type = scen.get("decline_type")
     failure_reason = scen.get("failure_reason")
-    error_details = dict(scen.get("error_details", {}))
+
+    raw_scen_details = dict(scen.get("error_details", {}))
+    case_metadata = dict(scen.get("case_metadata", {}))
+
+    # Error details are strictly technical diagnostics
+    ERROR_DETAIL_KEYS = {
+        "error_code", "error_description", "error_source", "error_step",
+        "error_reason", "dispute_reason", "card_network", "card_last4",
+        "card_type", "card_issuer", "rrn", "bank_transaction_id"
+    }
+    error_details = {k: v for k, v in raw_scen_details.items() if k in ERROR_DETAIL_KEYS}
+
+    # Populate case_metadata with non-error fields
+    for k, v in raw_scen_details.items():
+        if k not in ERROR_DETAIL_KEYS and k not in ["inbound_reply", "attempt_count"]:
+            case_metadata[k] = v
+
+    if case_type == "overdue_invoice":
+        case_metadata.setdefault("invoice_number", f"INV-2026-{case_uuid[-4:].upper()}")
+
     method = scen.get("method")
     through = scen.get("through")
 
@@ -162,7 +186,7 @@ async def execute_scenario(scen: dict, index: int) -> dict:
             decline_type=decline_type,
             failure_reason=failure_reason,
             error_details=error_details,
-            case_metadata={},
+            case_metadata=case_metadata,
             method=method,
             through=through,
             amount_inr=amount_inr,
@@ -188,7 +212,7 @@ async def execute_scenario(scen: dict, index: int) -> dict:
         )
         
         # Check if this scenario starts with an attempt count >= 3
-        if error_details.get("attempt_count", 0) >= 3:
+        if raw_scen_details.get("attempt_count", 0) >= 3 or scen.get("attempt_count", 0) >= 3 or case_metadata.get("attempt_count", 0) >= 3:
             initial_state.attempt_count = 3
 
         await save_state(initial_state, db)
@@ -203,7 +227,12 @@ async def execute_scenario(scen: dict, index: int) -> dict:
         config = {"configurable": {"thread_id": case_uuid}}
         
         if event_type.startswith("inbound."):
-            inbound_body = error_details.get("inbound_reply", "Hello")
+            inbound_body = (
+                scen.get("inbound_reply")
+                or raw_scen_details.get("inbound_reply")
+                or case_metadata.get("inbound_reply")
+                or "Hello"
+            )
             await handle_inbound_whatsapp(customer["contact"], inbound_body, db, case_id=case_uuid)
         elif event_type == "payment.dispute.created":
             dispute_payload = {
@@ -286,10 +315,7 @@ async def execute_scenario(scen: dict, index: int) -> dict:
                 actual_discount_pct = float(meta.get("discount_pct", 0.0))
         elif action == "negotiates_and_pays":
             # Dynamic Negotiation Rule: Customer pays ONLY if concession offered falls within bounded policy (5% - 30%)
-            agent_disc = float(meta.get("discount_pct", 0.0))
-            if agent_disc == 0.0 and sim.get("discount_applied"):
-                agent_disc = float(sim.get("discount_applied", 0.0))
-
+            agent_disc = float(meta.get("discount_pct", 0.0) or meta.get("eligible_discount", 0.0))
             min_disc = float(settings.min_discount)
             max_disc = float(settings.max_discount)
             if min_disc <= agent_disc <= max_disc:
@@ -303,7 +329,7 @@ async def execute_scenario(scen: dict, index: int) -> dict:
                 payment_eligible = True
         elif action == "ptp_logged_and_paid":
             # Customer honors commitment if PTP was properly recorded and follow-up paused
-            if err_details.get("ptp_date") or "log_promise_to_pay" in audit_events or mid_state.next_retry_at is not None:
+            if meta.get("ptp_date") or "log_promise_to_pay" in audit_events or mid_state.next_retry_at is not None:
                 payment_eligible = True
         elif action == "partial_then_cleared":
             # Clearance of outstanding balance on valid invoice
